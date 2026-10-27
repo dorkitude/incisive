@@ -1,0 +1,200 @@
+[
+    {
+        "name": "legacy32-0",
+        "masterKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "filters": [
+            {
+                "property_name": "user_id",
+                "operator": "eq",
+                "property_value": "123"
+            }
+        ],
+        "allowed_operations": [
+            "read"
+        ],
+        "scopedKey": "97eba920cf4a823fcc39f2c96d8cd0bf6835a0f8054fa0fc10dc197fbd6e89e26dbef2fdee3ff549b85ca8c1a790d44f641de61600773329683062ad34a4d114925e6438d6528a07f8c8e07cdb441efa7442095223d17bcef7a43753aa43a31d45de2f1255762793d4924f6c302e9cdc3d21c6655711751bddf4a0659230c058d03f91548a5dd59c38151c97025c5109",
+        "decrypted": {
+            "filters": [
+                {
+                    "property_name": "user_id",
+                    "operator": "eq",
+                    "property_value": "123"
+                }
+            ],
+            "allowed_operations": [
+                "read"
+            ]
+        }
+    },
+    {
+        "name": "legacy32-1",
+        "masterKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "filters": [
+            {
+                "property_name": "url",
+                "operator": "eq",
+                "property_value": "http://x/y é"
+            }
+        ],
+        "allowed_operations": [
+            "read",
+            "write"
+        ],
+        "scopedKey": "ddd4ca13c4b477fb0ee9b6ad08e7c7be5521ec0e745daf0e88cc58642930d6d05a858724e179c8f666b8ce5a68fc79ff5534cf6491386088008622373da57df4b603c931f3c95d6a53bb9a5f992cd3f74628fe65bf3535107a13a70d7cc7481885a53692d17694172db984f1d39b9026302664c309b262d803a6afd757933271036a4996ee64a262fb4a421f082b8f63a02f12ec7ed5985e75d9f3f923118fa0c6c78c58066a90c75f06e577f79f956a",
+        "decrypted": {
+            "filters": [
+                {
+                    "property_name": "url",
+                    "operator": "eq",
+                    "property_value": "http://x/y é"
+                }
+            ],
+            "allowed_operations": [
+                "read",
+                "write"
+            ]
+        }
+    },
+    {
+        "name": "legacy32-2",
+        "masterKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "filters": [],
+        "allowed_operations": [],
+        "scopedKey": "4f60960d5e6155d83388e90bba8a45f66fe3c7bc1ea10a88c3b1bd9b2b97be7898daacc772cd549ccdef265ec57808c8",
+        "decrypted": {
+            "filters": []
+        }
+    },
+    {
+        "name": "hex64-0",
+        "masterKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        "filters": [
+            {
+                "property_name": "user_id",
+                "operator": "eq",
+                "property_value": "123"
+            }
+        ],
+        "allowed_operations": [
+            "read"
+        ],
+        "scopedKey": "4cb814f562ef1f1efc8e06b5da096f254ab0b74638e47affc5adb011a62963b2194b648947ac0b49384efe01dddf93fedc1f85d58e64aea05f16ff4e1bc861207da749bce63d7121cb9cf88cad17cce07eb29b6203ce892f025be67dc7c909befe7372d1d2d81ef9c8bc8b9a5533430baf2c373114f57b73cbd960e06fbe7121",
+        "decrypted": {
+            "filters": [
+                {
+                    "property_name": "user_id",
+                    "operator": "eq",
+                    "property_value": "123"
+                }
+            ],
+            "allowed_operations": [
+                "read"
+            ]
+        }
+    },
+    {
+        "name": "hex64-1",
+        "masterKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        "filters": [
+            {
+                "property_name": "url",
+                "operator": "eq",
+                "property_value": "http://x/y é"
+            }
+        ],
+        "allowed_operations": [
+            "read",
+            "write"
+        ],
+        "scopedKey": "ce3793edbcf07ee3e71b208153253d2d6cd8bf3b1f688f61831efca5b2159e45132022f31ff1f5a8254fccf4d775205d2e1ca72c036217d430c680ca5521111901d7eb5769a90aec6a76c670e8a3ac73b323e588378faa712d1b1050d717d8522285a8dfabc66377d46cde32f0c9ac29b20bec99525fe3677a38a6d56d1b408bb682743b14cce6594c58e03a62d5c8eb418e43c846a79d555805ef25514c77dd",
+        "decrypted": {
+            "filters": [
+                {
+                    "property_name": "url",
+                    "operator": "eq",
+                    "property_value": "http://x/y é"
+                }
+            ],
+            "allowed_operations": [
+                "read",
+                "write"
+            ]
+        }
+    },
+    {
+        "name": "hex64-2",
+        "masterKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        "filters": [],
+        "allowed_operations": [],
+        "scopedKey": "946f7d249db2259eebdf6ca45244a9b7bd1107ddcf365d815fa7e3cf12ac3484",
+        "decrypted": {
+            "filters": []
+        }
+    },
+    {
+        "name": "hex64b-0",
+        "masterKey": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "filters": [
+            {
+                "property_name": "user_id",
+                "operator": "eq",
+                "property_value": "123"
+            }
+        ],
+        "allowed_operations": [
+            "read"
+        ],
+        "scopedKey": "35774ffbb2b59d62b5cac499070e3fdce81511a9900ae3a7dde38902007e853e94b916d45e9cc19cadaad86548abce376f670fe698d3dfe3581515733453e55416ae87c98a56b144507dd6b3b4e4cadb5607484884ab8143841e294c684fd077de112ab8658abec37e6b539d5dbe60260c68b026447ff2c67d89beb417f30bcd",
+        "decrypted": {
+            "filters": [
+                {
+                    "property_name": "user_id",
+                    "operator": "eq",
+                    "property_value": "123"
+                }
+            ],
+            "allowed_operations": [
+                "read"
+            ]
+        }
+    },
+    {
+        "name": "hex64b-1",
+        "masterKey": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "filters": [
+            {
+                "property_name": "url",
+                "operator": "eq",
+                "property_value": "http://x/y é"
+            }
+        ],
+        "allowed_operations": [
+            "read",
+            "write"
+        ],
+        "scopedKey": "ffcdb4108aa529354191aa8c67883f3e2c2ad256e6d39972a1af2927c43f2bec058e770168147ec775061aea4729add05b97564974c8b089f88f6748351e8e9b03934ea1f1d5cfe3f593af359cd72f2c26175fde8b76f71a1c1296dfaf2286e2ab6eb374275b179eafbe9af986f79cca5dfa95c51eb4e3dff2e970aa78de64c944671681e6d47c8623adf5583713939928177eab96d139c85ed25700509b7aa4",
+        "decrypted": {
+            "filters": [
+                {
+                    "property_name": "url",
+                    "operator": "eq",
+                    "property_value": "http://x/y é"
+                }
+            ],
+            "allowed_operations": [
+                "read",
+                "write"
+            ]
+        }
+    },
+    {
+        "name": "hex64b-2",
+        "masterKey": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "filters": [],
+        "allowed_operations": [],
+        "scopedKey": "fe8225cce602256f49917e54c56d0a6fa8b75942c60e6bd2710bc857744b6044",
+        "decrypted": {
+            "filters": []
+        }
+    }
+]

@@ -1,0 +1,16 @@
+{
+  "name": "incisive-analysis",
+  "version": "0.1.0",
+  "description": "Query client for the incisive analytics server: analyses, funnels, extractions, saved queries, cached datasets and raw management requests",
+  "license": "MIT",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": ["src"],
+  "dependencies": {
+    "incisive-core": "0.1.0"
+  },
+  "engines": { "node": ">=18" }
+}

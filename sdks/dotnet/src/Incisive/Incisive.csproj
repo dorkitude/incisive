@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;netstandard2.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <RootNamespace>Incisive</RootNamespace>
+    <AssemblyName>Incisive</AssemblyName>
+    <PackageId>Incisive</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Incisive contributors</Authors>
+    <Description>Client for the Incisive self-hosted event analytics server: record events, run analyses, manage saved queries and cached datasets, and generate scoped keys.</Description>
+    <PackageTags>analytics events self-hosted</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+  <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard2.0' ">
+    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Incisive.Tests" />
+  </ItemGroup>
+</Project>

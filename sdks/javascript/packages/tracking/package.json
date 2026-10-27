@@ -1,0 +1,16 @@
+{
+  "name": "incisive-tracking",
+  "version": "0.1.0",
+  "description": "Event tracking for the incisive analytics server, for browsers and Node.js (fetch, Beacon API and image-pixel transports, batching, auto-tracking)",
+  "license": "MIT",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": ["src"],
+  "dependencies": {
+    "incisive-core": "0.1.0"
+  },
+  "engines": { "node": ">=18" }
+}

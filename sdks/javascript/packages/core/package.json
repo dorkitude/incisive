@@ -1,0 +1,15 @@
+{
+  "name": "incisive-core",
+  "version": "0.1.0",
+  "description": "Shared configuration, URL and event-emitter foundation for the incisive JavaScript SDKs",
+  "license": "MIT",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./utils": "./src/utils.js"
+  },
+  "files": ["src"],
+  "sideEffects": false,
+  "engines": { "node": ">=18" }
+}

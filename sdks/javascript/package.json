@@ -1,0 +1,21 @@
+{
+  "name": "incisive-js",
+  "private": true,
+  "version": "0.1.0",
+  "description": "JavaScript SDKs for the incisive analytics server (tracking, analysis, dataset helpers)",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/core",
+    "packages/tracking",
+    "packages/analysis",
+    "packages/dataset"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "test:integration": "node --test test/integration.test.js"
+  }
+}
