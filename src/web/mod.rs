@@ -17,6 +17,8 @@ use std::collections::HashMap;
 
 pub const SESSION_COOKIE: &str = "incisive_session";
 pub const TZ_COOKIE: &str = "incisive_tz";
+/// The project the user last opened, so `/app` returns to it.
+pub const PROJECT_COOKIE: &str = "incisive_project";
 pub const TRACKER_JS: &str = include_str!("tracker.js");
 pub const STYLE_CSS: &str = include_str!("style.css");
 
@@ -193,12 +195,15 @@ async fn logout(State(st): State<St>, headers: HeaderMap) -> Response {
     ([(header::SET_COOKIE, c)], Redirect::to("/login")).into_response()
 }
 
-async fn app_home(State(st): State<St>, u: WebUser) -> Response {
+async fn app_home(State(st): State<St>, u: WebUser, headers: HeaderMap) -> Response {
     let projects = match st.meta.projects_for(&u.user.id) {
         Ok(p) => p,
         Err(e) => return internal(e),
     };
-    let pid = match projects.first() {
+    // The last project opened, else the newest one.
+    let last = cookie(&headers, PROJECT_COOKIE);
+    let pick = projects.iter().find(|p| Some(&p.id) == last.as_ref()).or(projects.last());
+    let pid = match pick {
         Some(p) => p.id.clone(),
         None => match st.meta.create_project(Some(&u.user.id), "My website") {
             Ok((p, _)) => p.id,

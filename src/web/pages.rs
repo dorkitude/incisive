@@ -1,7 +1,7 @@
 //! Page handlers and HTML templates.
 
 use super::dashboard::{self, Report, Row, Totals};
-use super::{cookie, internal, WebUser, TZ_COOKIE};
+use super::{cookie, internal, WebUser, PROJECT_COOKIE, TZ_COOKIE};
 use crate::api::St;
 use crate::auth::{self, KeyOptions, NamedOptions, QueriesOptions, WritesOptions};
 use crate::meta::{ApiKey, Project};
@@ -17,6 +17,12 @@ use std::collections::HashMap;
 
 // ---- layout ----
 
+/// Changes whenever the stylesheet does, so browsers never keep a stale copy.
+static STYLE_VERSION: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+    use sha2::{Digest, Sha256};
+    hex::encode(&Sha256::digest(super::STYLE_CSS.as_bytes())[..6])
+});
+
 fn head(title: &str) -> Markup {
     html! {
         (DOCTYPE)
@@ -24,11 +30,55 @@ fn head(title: &str) -> Markup {
             head {
                 meta charset="utf-8";
                 meta name="viewport" content="width=device-width, initial-scale=1";
+                meta name="theme-color" content="#16161e";
                 title { (title) " · Incisive" }
-                link rel="stylesheet" href="/static/style.css";
+                link rel="stylesheet" href=(format!("/static/style.css?v={}", *STYLE_VERSION));
             }
         }
     }
+}
+
+/// Copy buttons (`data-copy` holds the text, `data-copy-from` names an element) and tab switchers.
+const UI_JS: &str = r#"(function(){
+function copy(text,btn){
+ function done(){var t=btn.dataset.label||btn.textContent;btn.dataset.label=t;btn.textContent='Copied ✓';btn.classList.add('done');
+  clearTimeout(btn._t);btn._t=setTimeout(function(){btn.textContent=t;btn.classList.remove('done');},1500);}
+ function fallback(){var ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+  document.body.appendChild(ta);ta.select();try{document.execCommand('copy');done();}catch(e){}document.body.removeChild(ta);}
+ if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(text).then(done,fallback);}else{fallback();}
+}
+document.addEventListener('click',function(e){
+ var b=e.target.closest('button.copy');
+ if(b){var src=b.getAttribute('data-copy-from');copy(src?(document.getElementById(src)||{}).textContent||'':b.getAttribute('data-copy')||'',b);return;}
+ var t=e.target.closest('[data-tabs] .tabs button');
+ if(t){var g=t.closest('[data-tabs]');
+  g.querySelectorAll('.tabs button').forEach(function(x){x.classList.toggle('on',x===t);});
+  g.querySelectorAll('[data-panel]').forEach(function(p){p.hidden=p.getAttribute('data-panel')!==t.getAttribute('data-tab');});}
+});
+})();"#;
+
+/// A one-click copy button for a literal value.
+fn copy_button(text: &str) -> Markup {
+    html! { button.copy type="button" data-copy=(text) { "Copy" } }
+}
+
+/// A labeled code block with a copy button. `id` must be unique on the page.
+fn snippet(label: &str, id: &str, text: &str) -> Markup {
+    html! {
+        div.code {
+            div.code-hd { span.l { (label) } button.copy type="button" data-copy-from=(id) { "Copy" } }
+            pre id=(id) { (text) }
+        }
+    }
+}
+
+/// A small labeled value with a copy button.
+fn fact(label: &str, value: &str) -> Markup {
+    html! { div.fact { div.l { (label) } div.v { code title=(value) { (value) } (copy_button(value)) } } }
+}
+
+fn page_head(title: &str, sub: Markup, actions: Markup) -> Markup {
+    html! { div.ph { div { h1 { (title) } p.sub { (sub) } } div.row { (actions) } } }
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -40,39 +90,56 @@ enum Tab {
     Settings,
 }
 
+impl Tab {
+    fn icon(self) -> PreEscaped<&'static str> {
+        PreEscaped(match self {
+            Tab::Dashboard => r#"<svg viewBox="0 0 24 24"><path d="M3 3v18h18M7 15l4-4 3 3 6-6"/></svg>"#,
+            Tab::Install => r#"<svg viewBox="0 0 24 24"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>"#,
+            Tab::Keys => r#"<svg viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2M17 6l3 3M14.5 8.5l2 2"/></svg>"#,
+            Tab::Schema => r#"<svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>"#,
+            Tab::Settings => r#"<svg viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>"#,
+        })
+    }
+}
+
 fn layout(st: &St, u: &WebUser, p: &Project, tab: Tab, title: &str, body: Markup) -> String {
     let projects = st.meta.projects_for(&u.user.id).unwrap_or_default();
     let base = format!("/app/p/{}", p.id);
-    let t = |t: Tab, label: &str, href: String| html! { a.on[tab == t] href=(href) { (label) } };
+    let t = |t: Tab, label: &str, href: String| html! { a.on[tab == t] href=(href) { (t.icon()) (label) } };
     html! {
         (head(title))
         body {
-            header.top {
-                a.brand href="/app" { "incisive" span { "." } }
-                details style="position:relative" {
-                    summary { (p.name) }
-                    div.card style="position:absolute;z-index:10;min-width:240px;margin-top:6px" {
-                        @for q in &projects {
-                            div { a href=(format!("/app/p/{}", q.id)) { (q.name) } }
-                        }
-                        form method="post" action="/app/projects" style="margin-top:10px" {
-                            input type="hidden" name="csrf" value=(u.csrf);
-                            div.row { input type="text" name="name" placeholder="New project name" style="flex:1"; button.small type="submit" { "Add" } }
+            div.shell {
+                aside.side {
+                    a.brand href="/app" { "incisive" span { "." } }
+                    details.switcher {
+                        summary { span { (p.name) } }
+                        div.menu {
+                            @for q in &projects {
+                                a.on[q.id == p.id] href=(format!("/app/p/{}", q.id)) { (q.name) }
+                            }
+                            form method="post" action="/app/projects" {
+                                input type="hidden" name="csrf" value=(u.csrf);
+                                input type="text" name="name" placeholder="New project" required;
+                                button.small type="submit" { "Add" }
+                            }
                         }
                     }
+                    nav.nav {
+                        (t(Tab::Dashboard, "Dashboard", base.clone()))
+                        (t(Tab::Install, "Install", format!("{base}/install")))
+                        (t(Tab::Keys, "API keys", format!("{base}/keys")))
+                        (t(Tab::Schema, "Schema", format!("{base}/schema")))
+                        (t(Tab::Settings, "Settings", format!("{base}/settings")))
+                    }
+                    div.side-foot {
+                        div.who title=(u.user.email) { (u.user.email) }
+                        form.inline method="post" action="/logout" { button.ghost.small type="submit" { "Sign out" } }
+                    }
                 }
-                nav.tabs {
-                    (t(Tab::Dashboard, "Dashboard", base.clone()))
-                    (t(Tab::Install, "Install", format!("{base}/install")))
-                    (t(Tab::Keys, "API keys", format!("{base}/keys")))
-                    (t(Tab::Schema, "Schema", format!("{base}/schema")))
-                    (t(Tab::Settings, "Settings", format!("{base}/settings")))
-                }
-                div.spacer {}
-                span.muted { (u.user.email) }
-                form.inline method="post" action="/logout" { button.ghost.small type="submit" { "Sign out" } }
+                main { (body) }
             }
-            main { (body) }
+            script { (PreEscaped(UI_JS)) }
         }
     }
     .into_string()
@@ -81,7 +148,7 @@ fn layout(st: &St, u: &WebUser, p: &Project, tab: Tab, title: &str, body: Markup
 pub fn message_page(title: &str, msg: &str) -> String {
     html! {
         (head(title))
-        body { div.center { div.card.login { h1 { (title) } p.sub { (msg) } a href="/app" { "Back to the app" } } } }
+        body { div.center { div.login { div.card { h1 { (title) } p.sub { (msg) } a href="/app" { "← Back to the app" } } } } }
     }
     .into_string()
 }
@@ -94,16 +161,16 @@ pub fn login_page(error: Option<&str>) -> String {
         body {
             div.center {
                 div.login {
-                    span.brand { "incisive" span style="color:var(--accent)" { "." } }
+                    span.brand { "incisive" span { "." } }
                     p.sub { "Event analytics on object storage. Sign in or create an account. We'll email you a 6-digit code." }
                     div.card {
-                        @if let Some(e) = error { div.notice style="margin-bottom:14px" { (e) } }
+                        @if let Some(e) = error { div.notice.err { (e) } }
                         form method="post" action="/login" {
                             div.field {
                                 label.f for="email" { "Email" }
                                 input #email type="email" name="email" required autofocus autocomplete="email" placeholder="you@company.com";
                             }
-                            button type="submit" style="width:100%" { "Email me a sign-in code" }
+                            button.block type="submit" { "Email me a sign-in code" }
                         }
                     }
                     p.muted style="margin-top:14px;font-size:12.5px" { "Codes expire after 15 minutes. Once signed in, you stay signed in on this browser." }
@@ -118,24 +185,23 @@ pub fn code_page(email: &str, error: Option<&str>) -> String {
     html! {
         (head("Enter your code"))
         body { div.center { div.login {
-            span.brand { "incisive" span style="color:var(--accent)" { "." } }
-            div.card style="margin-top:14px" {
+            span.brand { "incisive" span { "." } }
+            div.card {
                 h1 { "Check your email ✉️" }
                 p.sub { "We sent a 6-digit code to " b { (email) } ". It expires in 15 minutes." }
-                @if let Some(e) = error { div.notice style="margin-bottom:14px" { (e) } }
+                @if let Some(e) = error { div.notice.err { (e) } }
                 form method="post" action="/login/code" {
                     input type="hidden" name="email" value=(email);
                     div.field {
                         label.f for="code" { "Sign-in code" }
-                        input #code type="text" name="code" required autofocus inputmode="numeric" autocomplete="one-time-code"
-                            pattern="[0-9 ]{6,7}" maxlength="7" placeholder="123456"
-                            style="font-size:24px;letter-spacing:0.3em;text-align:center;font-family:var(--mono)";
+                        input.otp #code type="text" name="code" required autofocus inputmode="numeric" autocomplete="one-time-code"
+                            pattern="[0-9 ]{6,7}" maxlength="7" placeholder="123456";
                     }
-                    button type="submit" style="width:100%" { "Sign in" }
+                    button.block type="submit" { "Sign in" }
                 }
                 form method="post" action="/login" style="margin-top:12px" {
                     input type="hidden" name="email" value=(email);
-                    button.ghost type="submit" style="width:100%" { "Send a new code" }
+                    button.ghost.block type="submit" { "Send a new code" }
                 }
             }
             p.muted style="margin-top:14px;font-size:12.5px" { a href="/login" { "Use a different address" } }
@@ -334,7 +400,7 @@ fn chart(r: &Report, m: Metric, zone: Zone, hourly: bool) -> Markup {
                 line.cross #cross x1="0" x2="0" y1=(top) y2=(h - bottom) style="display:none" vector-effect="non-scaling-stroke" {}
             }
             // Axis labels in HTML so they do not stretch with the SVG.
-            div.axis style="position:absolute;inset:0;pointer-events:none;font-size:11px;color:var(--muted)" {
+            div.axis style="position:absolute;inset:0;pointer-events:none;font-size:11px;color:var(--faint)" {
                 @for k in 0..=4 {
                     @let v = max * k as f64 / 4.0;
                     div style=(format!("position:absolute;left:0;top:calc({:.2}% - 8px)", y(v) / h * 100.0)) {
@@ -349,7 +415,7 @@ fn chart(r: &Report, m: Metric, zone: Zone, hourly: bool) -> Markup {
                     }
                 }
             }
-            div.dot #dot style="display:none;position:absolute;width:10px;height:10px;border-radius:50%;background:var(--accent);border:2px solid var(--surface);transform:translate(-50%,-50%)" {}
+            div.dot #dot style="display:none;position:absolute;width:10px;height:10px;border-radius:50%;background:var(--accent);border:2px solid var(--surface);box-shadow:0 0 0 4px var(--accent-soft);transform:translate(-50%,-50%)" {}
             div.tip #tip style="display:none" {}
         }
         script { (PreEscaped(CHART_JS)) }
@@ -381,7 +447,7 @@ fn bars(title: &str, col: &str, unit: &str, rows: &[Row]) -> Markup {
     let max = rows.iter().map(|r| r.count).max().unwrap_or(1).max(1);
     html! {
         div.card {
-            h3 { (title) }
+            h2 { (title) }
             @if rows.is_empty() {
                 div.empty { "No data yet" }
             } @else {
@@ -429,55 +495,64 @@ pub async fn dashboard(State(st): State<St>, u: WebUser, Path(pid): Path<String>
     let base = format!("/app/p/{pid}");
     let href = |range: &str, metric: Metric| format!("{base}?range={range}&metric={}", metric.key());
     let empty = report.totals.pageviews == 0 && report.previous.pageviews == 0;
-    let body = html! {
-        div.row style="margin-bottom:16px" {
-            div { h1 { "Dashboard" } span.live { i {} (fmt_int(live)) " visitors in the last 30 minutes" } }
-            div.spacer {}
-            div.seg {
-                @for (k, l) in [("today", "Today"), ("24h", "24 hours"), ("7d", "7 days"), ("30d", "30 days"), ("90d", "90 days")] {
-                    a.on[k == range_key] href=(href(k, metric)) { (l) }
-                }
+    let range_seg = html! {
+        div.seg {
+            @for (k, l) in [("today", "Today"), ("24h", "24h"), ("7d", "7 days"), ("30d", "30 days"), ("90d", "90 days")] {
+                a.on[k == range_key] href=(href(k, metric)) { (l) }
             }
         }
+    };
+    let body = html! {
+        (page_head("Dashboard", html! { span.live { i {} (fmt_int(live)) " visitors in the last 30 minutes" } }, range_seg))
         @if empty {
-            div.notice style="margin-bottom:16px" {
+            div.notice {
                 "No pageviews yet. " a href=(format!("{base}/install")) { "Install the tracker" } " on your site and visits will appear here within seconds."
             }
         }
-        div.card style="margin-bottom:16px" {
+        div.card {
             div.kpis {
                 @for m in [Metric::Visitors, Metric::Pageviews, Metric::Sessions, Metric::Bounce, Metric::Duration] {
                     (kpi(m, m == metric, &report, href(range_key, m)))
                 }
             }
             (chart(&report, metric, zone, hourly))
-            p.muted style="margin:8px 0 0;font-size:12px" {
-                "Times in " (tz_name) ". Pages per session: "
+            p.footnote {
+                "Times in " (tz_name) " · Pages per session "
                 (report.totals.pages_per_session().map(|x| format!("{x:.2}")).unwrap_or("–".into()))
-                @if let Some(e) = interactions.engaged_seconds { ". Avg. engaged time per page: " (fmt_duration(e)) }
-                @if let Some(sc) = interactions.scroll { ". Avg. scroll depth: " (format!("{sc:.0}%")) }
-                @if report.bots_excluded > 0 { ". " (fmt_int(report.bots_excluded)) " bot pageviews excluded" }
-                "."
+                @if let Some(e) = interactions.engaged_seconds { " · Avg. engaged time per page " (fmt_duration(e)) }
+                @if let Some(sc) = interactions.scroll { " · Avg. scroll depth " (format!("{sc:.0}%")) }
+                @if report.bots_excluded > 0 { " · " (fmt_int(report.bots_excluded)) " bot pageviews excluded" }
             }
         }
+        h3.section { "Content" }
         div.grid.g2 {
             (bars("Top pages", "Page", "Pageviews", &report.pages))
             (bars("Landing pages", "Page", "Sessions", &report.landing))
+        }
+        h3.section { "Acquisition" }
+        div.grid.g2 {
             (bars("Channels", "Channel", "Sessions", &report.channels))
             (bars("Sources", "Source", "Sessions", &report.sources))
             (bars("Campaigns", "utm_campaign", "Sessions", &report.campaigns))
             (bars("Countries", "Country", "Sessions", &report.countries))
+        }
+        h3.section { "Technology" }
+        div.grid.g3 {
             (bars("Devices", "Device", "Sessions", &report.devices))
             (bars("Browsers", "Browser", "Sessions", &report.browsers))
             (bars("Operating systems", "OS", "Sessions", &report.oses))
+        }
+        h3.section { "Interactions" }
+        div.grid.g2 {
             (bars("Clicks", "Element", "Clicks", &interactions.clicks))
             (bars("Outbound links", "Destination", "Clicks", &interactions.outbound))
-            (bars("Form submissions", "Form", "Submissions", &interactions.forms))
+            (bars("Form submissions", "Page", "Submissions", &interactions.forms))
             (bars("Custom events", "Collection", "Events", &custom))
         }
         script { (PreEscaped(TZ_JS)) }
     };
-    Html(layout(&st, &u, &p, Tab::Dashboard, "Dashboard", body)).into_response()
+    let remember = format!("{PROJECT_COOKIE}={pid}; Path=/; HttpOnly; SameSite=Lax; Max-Age=34560000{}", if st.cfg.server.secure_cookies { "; Secure" } else { "" });
+    ([(axum::http::header::SET_COOKIE, remember)], Html(layout(&st, &u, &p, Tab::Dashboard, "Dashboard", body))).into_response()
 }
 
 #[derive(Default)]
@@ -564,12 +639,7 @@ fn perm_pills(k: &ApiKey) -> Markup {
 }
 
 fn copyable(secret: &str) -> Markup {
-    html! {
-        div.secret {
-            code { (secret) }
-            button.ghost.small type="button" onclick=(format!("navigator.clipboard.writeText('{secret}');this.textContent='Copied'")) { "Copy" }
-        }
-    }
+    html! { div.secret { code { (secret) } (copy_button(secret)) } }
 }
 
 const PERM_DOCS: [(&str, &str); 6] = [
@@ -585,38 +655,40 @@ fn keys_body(st: &St, u: &WebUser, p: &Project, created: Option<(&ApiKey, &str)>
     let keys = st.meta.keys(&p.id).unwrap_or_default();
     let base = format!("/app/p/{}/keys", p.id);
     html! {
-        h1 { "API keys" }
-        p.sub { "Keys start with " code { (auth::KEY_PREFIX) } ". Send one in the " code { "Authorization" } " header (or as " code { "api_key" } "). Custom keys can be limited to specific operations, can stamp properties onto every event they write, and can restrict every query they run with filters." }
+        (page_head("API keys", html! { "Send a key in the " code { "Authorization" } " header (or as " code { "api_key" } "). Custom keys can be limited to specific operations, stamp properties onto every event they write, and filter every query they run." }, html! {}))
         @if let Some((k, secret)) = created {
-            div.notice style="margin-bottom:16px" {
+            div.notice.ok {
                 b { "New key “" (k.name) "” created." }
                 @if k.secret.is_none() { " Copy it now: it won't be shown again." }
                 div style="margin-top:8px" { (copyable(secret)) }
             }
         }
-        @if let Some(e) = error { div.notice style="margin-bottom:16px" { (e) } }
-        div.card style="margin-bottom:16px" {
+        @if let Some(e) = error { div.notice.err { (e) } }
+        div.card style="margin-bottom:16px;padding:8px 12px" {
             div.table-wrap {
                 table {
                     thead { tr { th { "Name" } th { "Key" } th { "Permissions" } th { "Status" } th { "Last used" } th {} } }
                     tbody {
                         @for k in &keys {
                             tr {
-                                td { b { (k.name) } }
+                                td style="white-space:nowrap" { b { (k.name) } }
                                 td {
-                                    @if let Some(s) = &k.secret {
-                                        details { summary.mono { (k.hint) } div style="margin-top:6px;min-width:280px" { (copyable(s)) } }
-                                    } @else { span.mono { (k.hint) } }
+                                    div.row style="gap:8px;flex-wrap:nowrap" {
+                                        span.mono { (k.hint) }
+                                        @if let Some(s) = &k.secret { (copy_button(s)) }
+                                    }
                                 }
                                 td { (perm_pills(k)) @if k.options != KeyOptions::default() { details { summary { "options" } pre { (serde_json::to_string_pretty(&k.options).unwrap_or_default()) } } } }
-                                td { @if k.is_active { span.pill.on { "active" } } @else { span.pill.off { "revoked" } } }
-                                td.muted { (k.last_used_at.map(crate::api::iso).unwrap_or_else(|| "never".into())) }
+                                td { @if k.is_active { span.pill.ok { "active" } } @else { span.pill.off { "revoked" } } }
+                                td.muted style="white-space:nowrap" title=(k.last_used_at.map(crate::api::iso).unwrap_or_default()) {
+                                    (k.last_used_at.and_then(|t| chrono::DateTime::from_timestamp(t, 0)).map(|t| t.format("%b %-d, %H:%M UTC").to_string()).unwrap_or_else(|| "never".into()))
+                                }
                                 td style="white-space:nowrap" {
                                     @if !k.master {
                                         @for (action, label, cls) in [(if k.is_active { "revoke" } else { "unrevoke" }, if k.is_active { "Revoke" } else { "Restore" }, "ghost"), ("delete", "Delete", "danger")] {
                                             form.inline method="post" action=(format!("{base}/{}/{action}", k.id)) {
                                                 input type="hidden" name="csrf" value=(u.csrf);
-                                                button.small class=(cls) type="submit" { (label) }
+                                                button class=(format!("small {cls}")) type="submit" { (label) }
                                             }
                                             " "
                                         }
@@ -629,16 +701,18 @@ fn keys_body(st: &St, u: &WebUser, p: &Project, created: Option<(&ApiKey, &str)>
             }
         }
         div.card {
-            h2 { "Create a key" }
+            div.card-hd { h2 { "Create a key" } }
             form method="post" action=(base) {
                 input type="hidden" name="csrf" value=(u.csrf);
-                div.field { label.f { "Name" } input type="text" name="name" required placeholder="e.g. Marketing site, Customer 42 dashboard"; }
+                div.field style="max-width:420px" { label.f { "Name" } input type="text" name="name" required placeholder="e.g. Marketing site, Customer 42 dashboard"; }
                 div.field {
                     label.f { "Permissions" }
-                    @for (perm, doc) in PERM_DOCS {
-                        label style="display:block;margin:4px 0" {
-                            input type="checkbox" name=(format!("p_{perm}")) value="1" checked[perm == "writes"];
-                            " " code { (perm) } " — " span.muted { (doc) }
+                    div.checks {
+                        @for (perm, doc) in PERM_DOCS {
+                            label {
+                                input type="checkbox" name=(format!("p_{perm}")) value="1" checked[perm == "writes"];
+                                code style="min-width:120px" { (perm) } span.muted { (doc) }
+                            }
                         }
                     }
                 }
@@ -755,11 +829,11 @@ pub async fn install_page(State(st): State<St>, u: WebUser, Path(pid): Path<Stri
     let public = st.cfg.server.public_url.trim_end_matches('/').to_string();
     let tracker = if st.cfg.server.tracker_url.is_empty() { format!("{public}/js/incisive.js") } else { st.cfg.server.tracker_url.clone() };
     let keys = write_keys(&st, &pid);
+    let api = format!("{public}/3.0/projects/{}", p.id);
     let body = html! {
-        h1 { "Install" }
-        p.sub { "Project ID " code { (p.id) } " · API base " code { (public) "/3.0/projects/" (p.id) } }
+        (page_head("Install", html! { "Start sending events: paste the tracker into your site, drop in a pixel, or call the API from your server." }, html! {}))
         @if keys.is_empty() {
-            div.notice style="margin-bottom:16px" {
+            div.notice {
                 "You need a write-only key to track. "
                 form.inline method="post" action=(format!("/app/p/{pid}/install")) {
                     input type="hidden" name="csrf" value=(u.csrf);
@@ -768,19 +842,40 @@ pub async fn install_page(State(st): State<St>, u: WebUser, Path(pid): Path<Stri
             }
         } @else {
             @let key = keys[0].secret.clone().unwrap_or_default();
-            div.card style="margin-bottom:16px" {
-                h2 { "1. Website tracker" }
-                p { "Paste this before " code { "</head>" } " on every page. Nothing else is required: it auto-tracks sessions, pageviews (including single-page-app navigation), clicks with outbound-link and download detection, form submissions, engaged time and scroll depth, and elements marked " code { "data-track-view" } " scrolling into view. Every event carries the full standard context (visitor, session, campaign, channel, device, browser, location) so each collection answers questions on its own." }
-                pre { (format!("<script defer src=\"{tracker}\"\n  data-project=\"{}\"\n  data-key=\"{key}\"\n  data-host=\"{public}\"></script>", p.id)) }
-                p { "Choose what is auto-tracked with " code { "data-auto-track=\"pageviews,clicks,forms,engagement,views,errors\"" } " (or " code { "\"false\"" } " for none). Name important clicks with " code { "data-track=\"signup-cta\"" } " and exclude elements with " code { "data-incisive-ignore" } ". Form field values are never sent." }
-                p { "Or start it yourself with one call. Every flag is optional (all on except " code { "errors" } "), and the page load is always tracked. " code { "properties" } " are joined into every event; functions are called on each event with " code { "{collection, event}" } ":" }
-                pre { (format!("<script src=\"{tracker}\"></script>\n<script>\n  incisive.trackAll({{\n    project: \"{}\",\n    key: \"{key}\",\n    host: \"{public}\",\n    clicks: true, forms: true, engagement: true, views: true, errors: false,\n    // Optional: properties added to every event. These are placeholders; a function is called on each event.\n    // properties: {{\n    //   app: {{ version: \"2.3.1\" }},\n    //   cart: {{ items: function () {{ return window.cart ? window.cart.length : 0; }} }}\n    // }}\n  }});\n</script>", p.id)) }
-                p { "Track your own events and identify signed-in users:" }
-                pre { "incisive.track(\"signup\", {plan: \"pro\"});\nincisive.identify(\"user-42\", {plan: \"pro\"});\nincisive.extend({experiment: {variant: \"b\"}});  // add to every later event" }
+            div.facts style="margin-bottom:16px" {
+                (fact("Project ID", &p.id))
+                (fact("Write key (public)", &key))
+                (fact("API host", &public))
+            }
+            div.card style="margin-bottom:16px" data-tabs {
+                div.card-hd {
+                    h2 { span.step { "1" } "Website tracker" }
+                    div.tabs { button.on type="button" data-tab="tag" { "Script tag" } button type="button" data-tab="js" { "trackAll()" } }
+                }
+                p.muted { "Auto-tracks sessions, pageviews (including single-page-app navigation), clicks with outbound-link and download detection, form submissions, engaged time and scroll depth. Every event carries the full context (visitor, session, campaign, channel, device, browser, location), so each collection answers questions on its own." }
+                div data-panel="tag" {
+                    (snippet("Paste before </head> on every page", "snip-tag", &format!("<script defer src=\"{tracker}\"\n  data-project=\"{}\"\n  data-key=\"{key}\"\n  data-host=\"{public}\"></script>", p.id)))
+                }
+                div data-panel="js" hidden {
+                    (snippet("Start it from your own code (every flag is optional; the page load is always tracked)", "snip-js", &format!("<script src=\"{tracker}\"></script>\n<script>\n  incisive.trackAll({{\n    project: \"{}\",\n    key: \"{key}\",\n    host: \"{public}\",\n    clicks: true, forms: true, engagement: true, views: true, errors: false,\n    // Optional: properties added to every event. These are placeholders; a function is called on each event.\n    // properties: {{\n    //   app: {{ version: \"2.3.1\" }},\n    //   cart: {{ items: function () {{ return window.cart ? window.cart.length : 0; }} }}\n    // }}\n  }});\n</script>", p.id)))
+                }
+                (snippet("Custom events and signed-in users", "snip-api", "incisive.track(\"signup\", {plan: \"pro\"});\nincisive.identify(\"user-42\", {plan: \"pro\"});\nincisive.extend({experiment: {variant: \"b\"}});  // add to every later event"))
+                details.disclose {
+                    summary { "Options" }
+                    dl.opts style="margin-top:12px" {
+                        dt { code { "data-auto-track" } } dd { "Comma list of " code { "pageviews,clicks,forms,engagement,views,errors" } ", or " code { "false" } " for none. All but errors are on by default." }
+                        dt { code { "data-track=\"name\"" } } dd { "Names a click target, e.g. " code { "signup-cta" } "." }
+                        dt { code { "data-track-view" } } dd { "Records a " code { "web_element_view" } " when the element scrolls into view." }
+                        dt { code { "data-incisive-ignore" } } dd { "Never track clicks on this element or its children." }
+                        dt { code { "data-spa" } } dd { code { "false" } " turns off single-page-app navigation tracking." }
+                        dt { code { "data-respect-dnt" } } dd { code { "true" } " skips visitors with Do Not Track on." }
+                    }
+                    p.muted.small style="margin:12px 0 0" { "Form field values are never sent." }
+                }
             }
             div.card style="margin-bottom:16px" {
-                h2 { "2. Tracking pixel" }
-                p { "A 1×1 image that records an event when it loads: for emails, or anywhere scripts can't run. The event is base64-encoded JSON in the URL." }
+                div.card-hd { h2 { span.step { "2" } "Tracking pixel" } }
+                p.muted { "A 1×1 image that records an event when it loads: for emails, or anywhere scripts can't run. The event is base64-encoded JSON in the URL." }
                 div.grid.g2 {
                     div {
                         div.field { label.f { "Collection" } input #px-coll type="text" value="email_opens"; }
@@ -791,10 +886,8 @@ pub async fn install_page(State(st): State<St>, u: WebUser, Path(pid): Path<Stri
                         }
                     }
                     div {
-                        label.f { "Image tag" }
-                        pre #px-tag {}
-                        label.f { "URL" }
-                        pre #px-url {}
+                        (snippet("Image tag", "px-tag", ""))
+                        (snippet("URL", "px-url", ""))
                         div.hint #px-err {}
                     }
                 }
@@ -807,12 +900,12 @@ function upd(){{var e=document.getElementById('px-err'); e.textContent='';
  document.getElementById('px-url').textContent=url;
  document.getElementById('px-tag').textContent='<img src="'+url.replace(/&/g,'&amp;')+'" width="1" height="1" alt="" style="display:none">';}}
 ['px-coll','px-props','px-key'].forEach(function(id){{document.getElementById(id).addEventListener('input',upd);}}); upd();}})();"#,
-                    serde_json::to_string(&format!("{public}/3.0/projects/{}", p.id)).unwrap()))) }
+                    serde_json::to_string(&api).unwrap()))) }
             }
             div.card {
-                h2 { "3. Server-side and other SDKs" }
-                p { "Any client that speaks the event API works: point it at " code { (public) } ", use project ID " code { (p.id) } " and a key from " a href=(format!("/app/p/{pid}/keys")) { "API keys" } "." }
-                pre { (format!("curl -X POST {public}/3.0/projects/{}/events/purchases \\\n  -H 'Authorization: {key}' -H 'Content-Type: application/json' \\\n  -d '{{\"item\": {{\"name\": \"hat\", \"price\": 25}}, \"customer\": {{\"id\": \"c-1\"}}}}'", p.id)) }
+                div.card-hd { h2 { span.step { "3" } "Server-side and other SDKs" } }
+                p.muted { "Any client that speaks the event API works: point it at " code { (public) } " with project ID " code { (p.id) } " and a key from " a href=(format!("/app/p/{pid}/keys")) { "API keys" } "." }
+                (snippet("Send an event with curl", "snip-curl", &format!("curl -X POST {api}/events/purchases \\\n  -H 'Authorization: {key}' -H 'Content-Type: application/json' \\\n  -d '{{\"item\": {{\"name\": \"hat\", \"price\": 25}}, \"customer\": {{\"id\": \"c-1\"}}}}'")))
             }
         }
     };
@@ -841,8 +934,7 @@ pub async fn schema_page(State(st): State<St>, u: WebUser, Path(pid): Path<Strin
     };
     let observed = st.engine.schema(&pid).await.unwrap_or_default();
     let body = html! {
-        h1 { "Schema" }
-        p.sub { "Events are schemaless JSON. The web collections below have a standard schema that powers the dashboard: send these properties (the tracker does) and the server derives the rest. You can add any other properties." }
+        (page_head("Schema", html! { "Events are schemaless JSON. The web collections have a standard schema that powers the dashboard: the tracker sends these properties and the server derives the rest. Add any others you like." }, html! {}))
         div.card style="margin-bottom:16px" {
             h2 { "Standard collections: " code { (standard::PAGEVIEW) } " and " code { (standard::SESSION) } }
             p.muted { "Properties are denormalized: every pageview repeats its session's acquisition data (landing page, referrer, campaign, channel) and its visitor's identity, so any question is one query on one collection with no joins. Derived properties are only filled when absent, so you can always override them." }
@@ -854,8 +946,8 @@ pub async fn schema_page(State(st): State<St>, u: WebUser, Path(pid): Path<Strin
                             tr {
                                 td.mono { (f.path) }
                                 td.muted { (format!("{:?}", f.kind).to_lowercase()) }
-                                td { @if f.pageview { "✓" } }
-                                td { @if f.session { "✓" } }
+                                td.check { @if f.pageview { "✓" } }
+                                td.check { @if f.session { "✓" } }
                                 td { (f.doc) }
                             }
                         }
@@ -883,7 +975,7 @@ pub async fn schema_page(State(st): State<St>, u: WebUser, Path(pid): Path<Strin
             @if observed.is_empty() { div.empty { "No events yet." } }
             @for (coll, props) in &observed {
                 details style="margin-bottom:8px" {
-                    summary { b { (coll) } span.muted { " · " (props.len()) " properties" } }
+                    summary { code { (coll) } span.muted { " · " (props.len()) " properties" } }
                     div.table-wrap { table { tbody { @for (path, t) in props { tr { td.mono { (path) } td.muted { (t) } } } } } }
                 }
             }
@@ -899,11 +991,18 @@ pub async fn settings_page(State(st): State<St>, u: WebUser, Path(pid): Path<Str
         Ok(p) => p,
         Err(r) => return r,
     };
+    let public = st.cfg.server.public_url.trim_end_matches('/').to_string();
     let body = html! {
-        h1 { "Settings" }
-        p.sub { "Project ID " code { (p.id) } }
+        (page_head("Settings", html! { "Project details and name." }, html! {}))
+        div.card style="margin-bottom:16px" {
+            div.card-hd { h2 { "Project" } }
+            div.facts {
+                (fact("Project ID", &p.id))
+                (fact("API base", &format!("{public}/3.0/projects/{}", p.id)))
+            }
+        }
         div.card {
-            h2 { "Project name" }
+            div.card-hd { h2 { "Project name" } }
             form method="post" action=(format!("/app/p/{pid}/settings")) {
                 input type="hidden" name="csrf" value=(u.csrf);
                 div.row { input type="text" name="name" value=(p.name) style="flex:1;max-width:360px"; button type="submit" { "Save" } }
