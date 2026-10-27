@@ -613,7 +613,14 @@ class IncisiveClient
                 continue;
             }
             $value = $params[$field];
-            $query[$field] = $field === 'timeframe' ? MultiTypeFiltering::encodeValue($value) : $value;
+            // filters and absolute timeframes travel as JSON, the documented encoding.
+            // (Bracket-style `filters[0][property_name]=` is not understood by every server
+            // and a server that ignores it would delete the whole collection.)
+            if ($field === 'filters') {
+                $query[$field] = (string) json_encode($value);
+            } else {
+                $query[$field] = $field === 'timeframe' ? MultiTypeFiltering::encodeValue($value) : $value;
+            }
         }
         if ($query) {
             $url .= '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);

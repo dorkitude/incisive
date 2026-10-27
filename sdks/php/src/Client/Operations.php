@@ -107,7 +107,7 @@ final class Operations
             ],
             'deleteEventProperties' => [
                 'method' => 'DELETE', 'path' => 'projects/{projectId}/events/{event_collection}/properties/{property_name}',
-                'auth' => 'write', 'required' => ['event_collection', 'property_name'],
+                'auth' => 'master', 'required' => ['event_collection', 'property_name'],
             ],
 
             'count' => self::query('count', ['event_collection'], array_merge(['event_collection'], self::COMMON)),

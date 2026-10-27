@@ -136,8 +136,8 @@ class WireFormatTest extends TestCase
             'deleteEvents with query string' => [
                 'deleteEvents', ['my coll', ['filters' => $f, 'timeframe' => ['start' => 's', 'end' => 'e'], 'timezone' => 'UTC']],
                 'DELETE',
-                '/3.0/projects/PID/events/my%20coll?filters%5B0%5D%5Bproperty_name%5D=a'
-                    . '&filters%5B0%5D%5Boperator%5D=eq&filters%5B0%5D%5Bproperty_value%5D=1'
+                '/3.0/projects/PID/events/my%20coll?filters=%5B%7B%22property_name%22%3A%22a%22%2C'
+                    . '%22operator%22%3A%22eq%22%2C%22property_value%22%3A1%7D%5D'
                     . '&timeframe=%7B%22start%22%3A%22s%22%2C%22end%22%3A%22e%22%7D&timezone=UTC',
                 'MASTER', null,
             ],
@@ -145,9 +145,9 @@ class WireFormatTest extends TestCase
                 'deleteEvents', ['c', ['timeframe' => 'this_week']],
                 'DELETE', '/3.0/projects/PID/events/c?timeframe=this_week', 'MASTER', null,
             ],
-            'deleteEventProperties uses write key' => [
+            'deleteEventProperties uses master key' => [
                 'deleteEventProperties', ['c', ['property_name' => 'p']],
-                'DELETE', '/3.0/projects/PID/events/c/properties/p', 'WRITE', null,
+                'DELETE', '/3.0/projects/PID/events/c/properties/p', 'MASTER', null,
             ],
             'getResources hits host root' => ['getResources', [], 'GET', '/', 'MASTER', null],
             'getProjects' => ['getProjects', [], 'GET', '/3.0/projects', 'MASTER', null],

@@ -40,9 +40,9 @@ Every option has a getter/setter (`setProjectId()`, `getReadKey()`,
 `setBaseUrl()`, ...). `getKeyForReading()` / `getKeyForWriting()` fall back to
 the master key when the read/write key is empty.
 
-The key goes in the `Authorization` header: write key for `addEvent`,
-`addEvents` and `deleteEventProperties`; read key for analyses; master key for
-everything else.
+The key goes in the `Authorization` header: write key for `addEvent` and
+`addEvents`; read key for analyses; master key for everything else (deletes,
+discovery, saved queries, projects).
 
 ## Record events
 
@@ -102,7 +102,9 @@ $client->deleteCollection('purchases');                     // or ['collection_n
 ```
 
 `deleteEvents` sends its `filters`, `timeframe` and `timezone` in the query
-string (`filters[0][property_name]=...`; an absolute timeframe is JSON).
+string; `filters` and an absolute timeframe are JSON encoded
+(`filters=[{"property_name":...}]`). Without filters or a timeframe it deletes
+every event in the collection.
 
 ## Saved and cached queries (master key)
 
