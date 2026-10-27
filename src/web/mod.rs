@@ -44,6 +44,7 @@ pub fn router(st: St) -> Router {
         .route("/app/p/{pid}/schema", get(pages::schema_page))
         .route("/app/p/{pid}/settings", get(pages::settings_page).post(pages::rename_project))
         .route("/js/incisive.js", get(tracker_js))
+        .route("/app/ignore", post(ignore_me))
         .route("/static/style.css", get(style_css))
         .route("/static/brand/{file}", get(brand))
         .route("/favicon.ico", get(|| brand(Path("favicon.svg".to_string()))))
@@ -52,6 +53,19 @@ pub fn router(st: St) -> Router {
 
 async fn tracker_js() -> Response {
     ([(header::CONTENT_TYPE, "application/javascript; charset=utf-8"), (header::CACHE_CONTROL, "public, max-age=3600")], TRACKER_JS).into_response()
+}
+
+/// The "Ignore my traffic" checkbox: on ignores this address, off stops ignoring it.
+async fn ignore_me(State(st): State<St>, u: WebUser, Form(form): Form<HashMap<String, String>>) -> Response {
+    if let Err(r) = u.check_csrf(&form) {
+        return r;
+    }
+    let Some(ip) = &u.ip else { return StatusCode::NO_CONTENT.into_response() };
+    let r = if form.get("on").map(String::as_str) == Some("1") { st.meta.ignore_ip(&u.user.id, ip) } else { st.meta.unignore_ip(&u.user.id, ip) };
+    match r {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => internal(e),
+    }
 }
 
 /// Logo and icon files from `src/web/brand/`.
@@ -86,6 +100,8 @@ pub fn cookie(headers: &HeaderMap, name: &str) -> Option<String> {
 pub struct WebUser {
     pub user: User,
     pub csrf: String,
+    /// The client address, for "Ignore my traffic".
+    pub ip: Option<String>,
 }
 
 pub fn csrf_for(session: &str) -> String {
@@ -99,7 +115,7 @@ impl FromRequestParts<St> for WebUser {
         let login = || Redirect::to("/login").into_response();
         let Some(token) = cookie(&parts.headers, SESSION_COOKIE) else { return Err(login()) };
         match st.meta.session_user(&token) {
-            Ok(Some(user)) => Ok(WebUser { user, csrf: csrf_for(&token) }),
+            Ok(Some(user)) => Ok(WebUser { user, csrf: csrf_for(&token), ip: crate::api::client_of(parts, st.cfg.server.trust_forwarded_for).ip }),
             Ok(None) => Err(login()),
             Err(e) => Err(crate::api::ApiError::from(e).into_response()),
         }

@@ -294,3 +294,33 @@ async fn standard_collections_and_placeholders() {
     assert_eq!(ev["page"]["utm"]["source"], "news");
     assert_eq!(ev["session"]["channel"], "Email", "{ev}");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn ignored_addresses() {
+    let e = env().await;
+    let (user, _) = e.st.meta.ensure_user("me@example.com").unwrap();
+    let (mine, keys) = e.st.meta.create_project(Some(&user.id), "mine").unwrap();
+    let (read, write) = (keys[1].1.clone(), keys[2].1.clone());
+    let me = "203.0.113.9";
+    e.st.meta.ignore_ip(&user.id, me).unwrap();
+    let send = |pid: String, key: String, ip: &'static str| {
+        let e = &e;
+        async move {
+            let r = e.call("POST", &format!("/1.0/projects/{pid}/events/visits"), Some(&key), Some(json!({"a": 1})), &[("x-forwarded-for", ip)]).await;
+            assert_eq!(r.status, 201, "accepted even when ignored, so trackers don't retry");
+        }
+    };
+    let count = |pid: String, key: String| {
+        let e = &e;
+        async move { e.call("GET", &format!("/1.0/projects/{pid}/queries/count?event_collection=visits"), Some(&key), None, &[]).await.json()["result"].clone() }
+    };
+    send(mine.id.clone(), write.clone(), me).await;
+    assert_eq!(count(mine.id.clone(), read.clone()).await, json!(0), "the member's own address is not stored");
+    send(mine.id.clone(), write.clone(), "198.51.100.1").await;
+    assert_eq!(count(mine.id.clone(), read.clone()).await, json!(1), "other visitors are");
+    send(e.pid.clone(), e.write.clone(), me).await;
+    assert_eq!(count(e.pid.clone(), e.read.clone()).await, json!(1), "projects the user isn't a member of are unaffected");
+    e.st.meta.unignore_ip(&user.id, me).unwrap();
+    send(mine.id.clone(), write.clone(), me).await;
+    assert_eq!(count(mine.id.clone(), read.clone()).await, json!(2), "unticking counts the member again");
+}

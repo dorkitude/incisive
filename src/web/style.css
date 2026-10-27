@@ -78,6 +78,7 @@ nav.nav a svg { width: 16px; height: 16px; flex: none; stroke: currentColor; fil
 nav.nav a:hover { background: var(--surface); color: var(--text); }
 nav.nav a.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .side-foot { margin-top: auto; padding: 12px 8px 0; border-top: 1px solid var(--border); font-size: 12.5px; }
+.side-foot label.ignore { display: flex; align-items: center; gap: 8px; color: var(--text-2); cursor: pointer; margin-bottom: 10px; }
 .side-foot .who { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 8px; }
 main { width: 100%; max-width: 1200px; padding: 28px 32px 64px; }
 .ph { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }

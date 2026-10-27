@@ -49,6 +49,11 @@ function copy(text,btn){
   document.body.appendChild(ta);ta.select();try{document.execCommand('copy');done();}catch(e){}document.body.removeChild(ta);}
  if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(text).then(done,fallback);}else{fallback();}
 }
+var ig=document.getElementById('ignore-me');
+if(ig) ig.addEventListener('change',function(){
+ fetch('/app/ignore',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},
+  body:'csrf='+encodeURIComponent(ig.dataset.csrf)+'&on='+(ig.checked?'1':'0')}).catch(function(){ig.checked=!ig.checked;});
+});
 document.addEventListener('click',function(e){
  var b=e.target.closest('button.copy');
  if(b){var src=b.getAttribute('data-copy-from');copy(src?(document.getElementById(src)||{}).textContent||'':b.getAttribute('data-copy')||'',b);return;}
@@ -115,6 +120,12 @@ impl Tab {
 }
 
 pub(super) fn layout(st: &St, u: &WebUser, p: &Project, tab: Tab, title: &str, body: Markup) -> String {
+    // "Ignore my traffic" turns itself back on with every page load.
+    if let Some(ip) = &u.ip
+        && let Err(e) = st.meta.ignore_ip(&u.user.id, ip)
+    {
+        tracing::warn!(error = %e, "could not record the ignored address");
+    }
     let projects = st.meta.projects_for(&u.user.id).unwrap_or_default();
     let base = format!("/app/p/{}", p.id);
     let t = |t: Tab, label: &str, href: String| html! { a.on[tab == t] href=(href) { (t.icon()) (label) } };
@@ -156,6 +167,12 @@ pub(super) fn layout(st: &St, u: &WebUser, p: &Project, tab: Tab, title: &str, b
                         (t(Tab::Settings, "Settings", format!("{base}/settings")))
                     }
                     div.side-foot {
+                        @if let Some(ip) = &u.ip {
+                            label.ignore title=(format!("Events from your address ({ip}) are not recorded in your projects. This turns back on each time you load a page here.")) {
+                                input #ignore-me type="checkbox" checked data-csrf=(u.csrf);
+                                span { "Ignore my traffic" }
+                            }
+                        }
                         div.who title=(u.user.email) { (u.user.email) }
                         form.inline method="post" action="/logout" { button.ghost.small type="submit" { "Sign out" } }
                     }
@@ -1032,6 +1049,11 @@ pub async fn settings_page(State(st): State<St>, u: WebUser, Path(pid): Path<Str
         Err(r) => return r,
     };
     let public = st.cfg.server.public_url.trim_end_matches('/').to_string();
+    if let Some(ip) = &u.ip {
+        // Recorded before the list is read, so the current address always shows.
+        let _ = st.meta.ignore_ip(&u.user.id, ip);
+    }
+    let ignored = st.meta.ignored_ips(&u.user.id).unwrap_or_default();
     let body = html! {
         (page_head("Settings", html! { "Project details and name." }, html! {}))
         div.card style="margin-bottom:16px" {
@@ -1039,6 +1061,23 @@ pub async fn settings_page(State(st): State<St>, u: WebUser, Path(pid): Path<Str
             div.facts {
                 (fact("Project ID", &p.id))
                 (fact("API base", &format!("{public}/1.0/projects/{}", p.id)))
+            }
+        }
+        div.card style="margin-bottom:16px" {
+            div.card-hd { h2 { "Ignored traffic" } }
+            p.muted { "Events sent from these addresses are not recorded in your projects. Loading any page here adds your current address; each one stops being ignored 30 days after you last used it here. Untick “Ignore my traffic” in the sidebar to count your own visits until the next page load." }
+            @if ignored.is_empty() { div.empty { "None." } } @else {
+                table {
+                    thead { tr { th { "Address" } th { "Last seen here" } } }
+                    tbody {
+                        @for (ip, at) in &ignored {
+                            tr {
+                                td.mono { (ip) @if u.ip.as_deref() == Some(ip.as_str()) { " " span.pill.on { "you, now" } } }
+                                td.muted { (chrono::DateTime::from_timestamp(*at, 0).map(|t| t.format("%b %-d, %H:%M UTC").to_string()).unwrap_or_default()) }
+                            }
+                        }
+                    }
+                }
             }
         }
         div.card {

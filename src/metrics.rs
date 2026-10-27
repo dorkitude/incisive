@@ -7,6 +7,7 @@ use std::sync::atomic::Ordering;
 pub struct Metrics {
     registry: Registry,
     pub events_written: IntCounter,
+    pub events_ignored: IntCounter,
     pub write_errors: IntCounter,
     pub queries: IntCounter,
     pub query_errors: IntCounter,
@@ -40,6 +41,7 @@ impl Metrics {
         };
         Metrics {
             events_written: counter("events_written_total", "Events durably written."),
+            events_ignored: counter("events_ignored_total", "Events dropped because a project member ignores their own address."),
             write_errors: counter("write_errors_total", "Write requests that failed to commit."),
             queries: counter("queries_total", "Queries run."),
             query_errors: counter("query_errors_total", "Queries that failed."),

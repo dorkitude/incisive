@@ -69,7 +69,17 @@ CREATE TABLE IF NOT EXISTS saved_queries (
     updated_at INTEGER NOT NULL,
     PRIMARY KEY (project_id, name)
 );
+CREATE TABLE IF NOT EXISTS ignored_ips (
+    user_id TEXT NOT NULL REFERENCES users(id),
+    ip TEXT NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, ip)
+);
+CREATE INDEX IF NOT EXISTS ignored_ips_ip ON ignored_ips(ip);
 "#;
+
+/// How long an address stays ignored after its user last loaded the app from it.
+pub const IGNORE_IP_TTL_SECS: i64 = 30 * 24 * 3600;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct User {
@@ -305,6 +315,43 @@ impl Meta {
         let mut st = c.prepare("SELECT p.id, p.name, p.created_at FROM projects p JOIN memberships m ON m.project_id = p.id WHERE m.user_id = ?1 ORDER BY p.created_at")?;
         let rows = st.query_map([user_id], |r| Ok(Project { id: r.get(0)?, name: r.get(1)?, created_at: r.get(2)? }))?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// Ignores events from `ip` in the user's projects, or extends an existing ignore.
+    pub fn ignore_ip(&self, user_id: &str, ip: &str) -> Result<()> {
+        let c = self.conn.lock();
+        c.execute(
+            "INSERT INTO ignored_ips (user_id, ip, updated_at) VALUES (?1, ?2, ?3) ON CONFLICT (user_id, ip) DO UPDATE SET updated_at = ?3",
+            params![user_id, ip, now()],
+        )?;
+        Ok(())
+    }
+
+    pub fn unignore_ip(&self, user_id: &str, ip: &str) -> Result<()> {
+        let c = self.conn.lock();
+        c.execute("DELETE FROM ignored_ips WHERE user_id = ?1 AND ip = ?2", params![user_id, ip])?;
+        Ok(())
+    }
+
+    /// The user's ignored addresses, most recently seen first, with when each was last seen.
+    pub fn ignored_ips(&self, user_id: &str) -> Result<Vec<(String, i64)>> {
+        let c = self.conn.lock();
+        let mut st = c.prepare("SELECT ip, updated_at FROM ignored_ips WHERE user_id = ?1 AND updated_at > ?2 ORDER BY updated_at DESC")?;
+        let rows = st.query_map(params![user_id, now() - IGNORE_IP_TTL_SECS], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// Whether a member of the project has asked to ignore events from `ip`.
+    pub fn is_ignored(&self, project_id: &str, ip: &str) -> Result<bool> {
+        let c = self.conn.lock();
+        Ok(c
+            .query_row(
+                "SELECT 1 FROM ignored_ips i JOIN memberships m ON m.user_id = i.user_id WHERE i.ip = ?1 AND m.project_id = ?2 AND i.updated_at > ?3 LIMIT 1",
+                params![ip, project_id, now() - IGNORE_IP_TTL_SECS],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some())
     }
 
     pub fn is_member(&self, project_id: &str, user_id: &str) -> Result<bool> {

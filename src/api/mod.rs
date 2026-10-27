@@ -280,6 +280,13 @@ async fn write_events(st: &AppState, access: &Access, c: &Client, items: Vec<(St
     if !st.allow(&access.project_id, "write", items.len() as f64) {
         return Err(err(StatusCode::TOO_MANY_REQUESTS, "TooManyRequestsError", "write rate limit exceeded; retry shortly"));
     }
+    // A member's own browsing ("Ignore my traffic"): accept, so trackers don't retry, but don't store.
+    if let Some(ip) = &c.ip
+        && st.meta.is_ignored(&access.project_id, ip).unwrap_or(false)
+    {
+        st.metrics.events_ignored.inc_by(items.len() as u64);
+        return Ok(items.iter().map(|_| Ok(())).collect());
+    }
     let prep = st.preparer();
     let ctx = c.ctx();
     let now = Utc::now();
