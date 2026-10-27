@@ -159,16 +159,14 @@ impl Preparer<'_> {
         let mut ev = Value::Object(ev);
         if crate::standard::is_standard(collection) {
             crate::standard::validate(collection, &ev)?;
-            if lookup(&ev, "ip_address").is_none_or(Value::is_null) {
-                if let Some(ip) = &ctx.ip {
+            if lookup(&ev, "ip_address").is_none_or(Value::is_null)
+                && let Some(ip) = &ctx.ip {
                     set_path(&mut ev, "ip_address", Value::String(ip.clone()));
                 }
-            }
-            if lookup(&ev, "user_agent.raw").is_none_or(Value::is_null) {
-                if let Some(ua) = &ctx.user_agent {
+            if lookup(&ev, "user_agent.raw").is_none_or(Value::is_null)
+                && let Some(ua) = &ctx.user_agent {
                     set_path(&mut ev, "user_agent.raw", Value::String(ua.clone()));
                 }
-            }
         }
         let mut meta = Value::Object(meta);
         apply_addons(&mut ev, &mut meta, self.geo)?;
@@ -248,11 +246,10 @@ fn apply_addons(ev: &mut Value, meta: &mut Value, geo: Option<&maxminddb::Reader
                 };
                 let ip = arg("ip");
                 let out = ip.as_deref().and_then(|ip| geo_lookup(db, ip));
-                if a.get("remove_ip_property").and_then(Value::as_bool) == Some(true) || input.get("remove_ip_property").and_then(Value::as_bool) == Some(true) {
-                    if let Some(p) = input.get("ip").and_then(Value::as_str) {
+                if (a.get("remove_ip_property").and_then(Value::as_bool) == Some(true) || input.get("remove_ip_property").and_then(Value::as_bool) == Some(true))
+                    && let Some(p) = input.get("ip").and_then(Value::as_str) {
                         remove_path(ev, p);
                     }
-                }
                 out
             }
             _ => return Err(invalid("InvalidAddonError", format!("unknown addon {name:?}"))),
@@ -324,11 +321,10 @@ pub fn parse_referrer(referrer: &str, page: Option<&str>) -> Value {
     let unknown = json!({"medium": "UNKNOWN", "source": null, "term": null});
     let Ok(r) = url::Url::parse(referrer) else { return unknown };
     let Some(host) = r.host_str().map(str::to_lowercase) else { return unknown };
-    if let Some(p) = page.and_then(|p| url::Url::parse(p).ok()) {
-        if p.host_str().is_some_and(|h| h.eq_ignore_ascii_case(&host)) {
+    if let Some(p) = page.and_then(|p| url::Url::parse(p).ok())
+        && p.host_str().is_some_and(|h| h.eq_ignore_ascii_case(&host)) {
             return json!({"medium": "INTERNAL", "source": null, "term": null});
         }
-    }
     let labels: Vec<&str> = host.split('.').collect();
     for i in (0..labels.len().saturating_sub(1)).rev() {
         if let Some(s) = ref_db(labels[i]) {

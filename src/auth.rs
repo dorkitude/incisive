@@ -175,11 +175,10 @@ pub fn validate_key_spec(permitted: &[String], options: &KeyOptions) -> Result<(
     if let Some(q) = &options.queries {
         crate::query::validate_filters(&q.filters).map_err(|e| e.message)?;
     }
-    if let Some(af) = options.writes.as_ref().and_then(|w| w.autofill.as_ref()) {
-        if af.contains_key(crate::event::RESERVED) {
+    if let Some(af) = options.writes.as_ref().and_then(|w| w.autofill.as_ref())
+        && af.contains_key(crate::event::RESERVED) {
             return Err("autofill cannot set the reserved metadata object".into());
         }
-    }
     Ok(())
 }
 
@@ -221,11 +220,10 @@ pub fn decrypt_scoped(master: &str, scoped: &str) -> Option<Map<String, Value>> 
     let parse = |b: &[u8]| serde_json::from_slice::<Value>(b).ok().and_then(|v| v.as_object().cloned());
     if let Some(&n) = pt.last() {
         let n = n as usize;
-        if (1..=32).contains(&n) && n <= pt.len() && pt[pt.len() - n..].iter().all(|&b| b as usize == n) {
-            if let Some(m) = parse(&pt[..pt.len() - n]) {
+        if (1..=32).contains(&n) && n <= pt.len() && pt[pt.len() - n..].iter().all(|&b| b as usize == n)
+            && let Some(m) = parse(&pt[..pt.len() - n]) {
                 return Some(m);
             }
-        }
     }
     parse(pt)
 }

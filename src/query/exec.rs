@@ -44,8 +44,8 @@ struct Compiled {
 fn compile(f: &Filter) -> Result<Compiled, QueryError> {
     let v = &f.property_value;
     let op = f.operator.as_str();
-    if f.property_name == "keen.timestamp" {
-        if let Some(t) = v.as_str().and_then(crate::event::parse_time) {
+    if f.property_name == "keen.timestamp"
+        && let Some(t) = v.as_str().and_then(crate::event::parse_time) {
             let ms = t.timestamp_millis();
             let op = match op {
                 "eq" => "eq",
@@ -60,7 +60,6 @@ fn compile(f: &Filter) -> Result<Compiled, QueryError> {
                 return Ok(Compiled { path: String::new(), pred: Pred::TimeCmp(op, ms) });
             }
         }
-    }
     let pred = match op {
         "eq" => {
             scalar(v, op)?;

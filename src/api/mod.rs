@@ -373,11 +373,10 @@ fn decode_data(data: &str) -> Option<Value> {
     let t = t.replace(' ', "+");
     use base64::engine::general_purpose::{STANDARD, STANDARD_NO_PAD, URL_SAFE, URL_SAFE_NO_PAD};
     for e in [&STANDARD, &URL_SAFE, &STANDARD_NO_PAD, &URL_SAFE_NO_PAD] {
-        if let Ok(b) = e.decode(&t) {
-            if let Ok(v) = serde_json::from_slice(&b) {
+        if let Ok(b) = e.decode(&t)
+            && let Ok(v) = serde_json::from_slice(&b) {
                 return Some(v);
             }
-        }
     }
     None
 }

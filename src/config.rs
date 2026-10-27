@@ -7,6 +7,7 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct Config {
     pub server: Server,
     pub storage: Storage,
@@ -126,21 +127,6 @@ pub struct Geo {
     pub db_path: PathBuf,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Config {
-            server: Server::default(),
-            storage: Storage::default(),
-            cache: Cache::default(),
-            wal: Wal::default(),
-            compaction: Compaction::default(),
-            meta: Meta::default(),
-            email: Email::default(),
-            limits: Limits::default(),
-            geo: Geo::default(),
-        }
-    }
-}
 
 impl Default for Server {
     fn default() -> Self {

@@ -92,7 +92,8 @@ pub struct ApiKey {
     /// The start of the key, for display.
     pub hint: String,
     pub master: bool,
-    /// The full key, kept only for master keys (it decrypts legacy scoped keys).
+    /// The full key, kept for master keys (they decrypt legacy scoped keys) and for write-only
+    /// keys (they are public by nature: they are embedded in web pages and pixels).
     pub secret: Option<String>,
     pub permitted: Vec<String>,
     pub options: KeyOptions,
@@ -133,6 +134,10 @@ pub struct Meta {
     keys: Mutex<HashMap<String, Option<ApiKey>>>,
     /// Project id -> master secrets, for scoped key decryption.
     masters: Mutex<HashMap<String, Vec<String>>>,
+}
+
+pub fn is_write_only(permitted: &[String]) -> bool {
+    permitted.len() == 1 && permitted[0] == "writes"
 }
 
 fn now() -> i64 {
@@ -308,7 +313,7 @@ impl Meta {
             name: name.to_string(),
             hint: format!("{}…", &secret[..auth::KEY_PREFIX.len() + 4]),
             master,
-            secret: master.then(|| secret.clone()),
+            secret: (master || is_write_only(&permitted)).then(|| secret.clone()),
             permitted,
             options,
             is_active: true,
@@ -368,9 +373,11 @@ impl Meta {
     }
 
     pub fn update_key(&self, k: &ApiKey) -> Result<()> {
+        // A key that gains read permissions stops keeping its secret.
+        let keep = k.master || is_write_only(&k.permitted);
         self.conn.lock().execute(
-            "UPDATE api_keys SET name = ?1, permitted = ?2, options = ?3, is_active = ?4 WHERE id = ?5 AND project_id = ?6",
-            params![k.name, serde_json::to_string(&k.permitted)?, serde_json::to_string(&k.options)?, k.is_active as i64, k.id, k.project_id],
+            "UPDATE api_keys SET name = ?1, permitted = ?2, options = ?3, is_active = ?4, secret = CASE WHEN ?7 THEN secret ELSE NULL END WHERE id = ?5 AND project_id = ?6",
+            params![k.name, serde_json::to_string(&k.permitted)?, serde_json::to_string(&k.options)?, k.is_active as i64, k.id, k.project_id, keep],
         )?;
         self.invalidate();
         Ok(())

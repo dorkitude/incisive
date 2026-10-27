@@ -140,14 +140,13 @@ pub fn validate(collection: &str, ev: &Value) -> Result<(), ValidationError> {
         if !applies {
             continue;
         }
-        if let Some(v) = lookup(ev, fd.path) {
-            if !v.is_null() && !kind_ok(fd.kind, v) {
+        if let Some(v) = lookup(ev, fd.path)
+            && !v.is_null() && !kind_ok(fd.kind, v) {
                 return Err(ValidationError {
                     name: "InvalidStandardPropertyError".into(),
                     description: format!("{collection}: {} must be a {:?}", fd.path, fd.kind).to_lowercase(),
                 });
             }
-        }
     }
     let required = if collection == PAGEVIEW { "page.url" } else { "session.id" };
     if lookup(ev, required).and_then(Value::as_str).is_none_or(str::is_empty) {
@@ -250,10 +249,11 @@ pub fn enrich(collection: &str, ev: &mut Value, meta: &Value, geo: Option<&maxmi
         if !bver.is_empty() {
             put_if_missing(ev, "browser.version", json!(bver.join(".")));
         }
-        put_if_missing(ev, "os.name", p["os"]["family"].clone());
         let over: Vec<String> = ["major", "minor", "patch"].iter().filter_map(|k| p["os"][*k].as_str().map(str::to_string)).collect();
-        if !over.is_empty() {
-            put_if_missing(ev, "os.version", json!(over.join(".")));
+        let (os, os_version) = os_name(p["os"]["family"].as_str().unwrap_or("Other"), (!over.is_empty()).then(|| over.join(".")));
+        put_if_missing(ev, "os.name", json!(os));
+        if let Some(v) = os_version {
+            put_if_missing(ev, "os.version", json!(v));
         }
         let lower = ua.to_lowercase();
         let dtype = if is_bot {
@@ -268,13 +268,11 @@ pub fn enrich(collection: &str, ev: &mut Value, meta: &Value, geo: Option<&maxmi
         put_if_missing(ev, "device.type", json!(dtype));
     }
     // Location.
-    if let (Some(db), Some(ip)) = (geo, lookup(ev, "ip_address").and_then(Value::as_str).map(str::to_string)) {
-        if missing(ev, "geo") {
-            if let Some(g) = crate::event::geo_lookup(db, &ip) {
+    if let (Some(db), Some(ip)) = (geo, lookup(ev, "ip_address").and_then(Value::as_str).map(str::to_string))
+        && missing(ev, "geo")
+            && let Some(g) = crate::event::geo_lookup(db, &ip) {
                 set_path(ev, "geo", g);
             }
-        }
-    }
     // Local time in the visitor's timezone.
     if let (Some(ts), Some(tz)) = (
         lookup(meta, "timestamp").and_then(Value::as_str).and_then(crate::event::parse_time),
@@ -288,6 +286,20 @@ pub fn enrich(collection: &str, ev: &mut Value, meta: &Value, geo: Option<&maxmi
 }
 
 /// Default channel grouping from the session's campaign parameters and referrer.
+/// Maps parser OS families to the names analytics tools usually report.
+fn os_name(family: &str, version: Option<String>) -> (String, Option<String>) {
+    match family {
+        "iPhone" | "iPad" | "iPod" | "iOS" => ("iOS".into(), version),
+        "Mac OSX" => ("macOS".into(), version),
+        "ChromeOS" => ("Chrome OS".into(), version),
+        f if f.starts_with("Windows ") => {
+            let v = f.trim_start_matches("Windows ").to_string();
+            ("Windows".into(), version.or(Some(v)))
+        }
+        f => (f.to_string(), version),
+    }
+}
+
 pub fn channel(ev: &Value) -> &'static str {
     let s = |p: &str| lookup(ev, p).and_then(Value::as_str).unwrap_or("").to_lowercase();
     let (src, med) = (s("session.utm.source"), s("session.utm.medium"));

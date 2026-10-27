@@ -163,13 +163,11 @@ pub async fn put_saved(State(st): State<St>, Path((pid, name)): Path<(String, St
     }
     let mut b = parse_body(&body)?;
     // An update may omit the query to change only metadata or refresh_rate.
-    if b.get("query").is_none() {
-        if let Some(old) = st.meta.saved_query(&pid, &name)? {
-            if let (Value::Object(bm), Some(q)) = (&mut b, old.body.get("query")) {
+    if b.get("query").is_none()
+        && let Some(old) = st.meta.saved_query(&pid, &name)?
+            && let (Value::Object(bm), Some(q)) = (&mut b, old.body.get("query")) {
                 bm.insert("query".into(), q.clone());
             }
-        }
-    }
     let q = saved_query_of(&b)?;
     let mut stored = Map::new();
     stored.insert("query".into(), q.echo());

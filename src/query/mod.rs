@@ -109,12 +109,11 @@ pub fn from_query_pairs<'a>(pairs: impl Iterator<Item = (String, String)> + 'a) 
         if k == "api_key" || m.contains_key(&k) {
             continue;
         }
-        if STRUCTURED.contains(&k.as_str()) {
-            if let Ok(x) = serde_json::from_str::<Value>(&v) {
+        if STRUCTURED.contains(&k.as_str())
+            && let Ok(x) = serde_json::from_str::<Value>(&v) {
                 m.insert(k, x);
                 continue;
             }
-        }
         m.insert(k, Value::String(v));
     }
     m
