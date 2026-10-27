@@ -156,4 +156,6 @@ INCISIVE_SMOKE_CONFIG=deploy/incisive.dev.toml cargo test --test fixture -- --ig
 - `tests/data/scoped_*.json`: encrypted scoped key vectors produced by the upstream libraries.
 - `tests/js/tracker_e2e.cjs`: runs the served tracker in jsdom through several visits against a
   running server and checks the stored sessions, pageviews and derived properties.
+- `tests/compat/run.sh`: runs the unmodified, pinned upstream JavaScript tracking, analysis and
+  visualization packages against a running server (Docker; it fronts the server with TLS).
 - `scripts/seed_demo.py` sends 30 days of synthetic traffic, for trying the dashboard.
