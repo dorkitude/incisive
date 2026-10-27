@@ -84,3 +84,35 @@ async fn fixture_cases() {
     failures.extend(run_cases(&engine, &fx, "reopened").await);
     assert!(failures.is_empty(), "{} failures:\n{}", failures.len(), failures.join("\n"));
 }
+
+/// The fixture against real object storage. Run with
+/// `INCISIVE_SMOKE_CONFIG=deploy/incisive.dev.toml cargo test --test fixture -- --ignored`.
+/// Uses a unique prefix under `smoke/` and deletes what it wrote.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore]
+async fn fixture_cases_object_storage() {
+    let Ok(path) = std::env::var("INCISIVE_SMOKE_CONFIG") else { return };
+    let fx: Value = serde_json::from_str(include_str!("data/fixture.json")).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let mut cfg = Config::load(Some(std::path::Path::new(&path))).unwrap();
+    cfg.storage.prefix = format!("smoke/{}/", ulid::Ulid::generate());
+    cfg.cache.dir = dir.path().join("cache");
+    cfg.compaction.enabled = false;
+    let store = objstore::build(&cfg.storage).unwrap();
+    let engine = Engine::open(&cfg, store.clone()).await.unwrap();
+    let prep = Preparer { max_event_bytes: 0, geo: None };
+    let now = Utc.with_ymd_and_hms(2026, 3, 11, 0, 0, 0).unwrap();
+    for (coll, evs) in fx["events"].as_object().unwrap() {
+        let stored = evs.as_array().unwrap().iter().map(|e| prep.prepare(coll, e.clone(), None, &Default::default(), now).unwrap()).collect();
+        engine.append("p1", stored).await.unwrap();
+    }
+    let mut failures = run_cases(&engine, &fx, "s3-wal").await;
+    engine.compact_all(true).await.unwrap();
+    failures.extend(run_cases(&engine, &fx, "s3-segments").await);
+    let keys = engine.list_objects("").await.unwrap();
+    assert!(keys.iter().any(|k| k.contains("segments/")) && keys.iter().any(|k| k.contains("manifests/")), "{keys:?}");
+    for k in keys {
+        object_store::ObjectStoreExt::delete(&*store, &object_store::path::Path::from(k.as_str())).await.ok();
+    }
+    assert!(failures.is_empty(), "{} failures:\n{}", failures.len(), failures.join("\n"));
+}
