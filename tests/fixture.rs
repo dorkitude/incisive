@@ -29,11 +29,8 @@ pub fn test_config(dir: &std::path::Path) -> Config {
 
 async fn run_cases(engine: &Engine, fx: &Value, stage: &str) -> Vec<String> {
     let now = Utc.with_ymd_and_hms(2026, 3, 12, 0, 0, 0).unwrap();
-    let ex = Executor {
-        engine,
-        limits: Limits { max_extraction: 1000, max_funnel: 1000, max_groups: 1000, max_intervals: 1000, max_scan: 1_000_000 },
-        now,
-    };
+    let limits = Limits { max_extraction: 1000, max_funnel: 1000, max_groups: 1000, max_intervals: 1000, max_scan: 1_000_000 };
+    let ex = Executor::new(engine, limits, now);
     let mut failures = vec![];
     for c in fx["cases"].as_array().unwrap() {
         let name = c["name"].as_str().unwrap();
@@ -73,7 +70,7 @@ async fn fixture_cases() {
     let prep = Preparer { max_event_bytes: 0, geo: None };
     let now = Utc.with_ymd_and_hms(2026, 3, 11, 0, 0, 0).unwrap();
     for (coll, evs) in fx["events"].as_object().unwrap() {
-        let stored = evs.as_array().unwrap().iter().map(|e| prep.prepare(coll, e.clone(), None, now).unwrap()).collect();
+        let stored = evs.as_array().unwrap().iter().map(|e| prep.prepare(coll, e.clone(), None, &Default::default(), now).unwrap()).collect();
         engine.append("p1", stored).await.unwrap();
     }
     let mut failures = run_cases(&engine, &fx, "wal").await;

@@ -97,6 +97,27 @@ fn validate_value(v: &Value, depth: usize) -> Result<(), ValidationError> {
     }
 }
 
+/// Facts about the request that sent an event.
+#[derive(Clone, Debug, Default)]
+pub struct RequestCtx {
+    pub ip: Option<String>,
+    pub user_agent: Option<String>,
+}
+
+const IP_PLACEHOLDER: &str = "${keen.ip}";
+const UA_PLACEHOLDER: &str = "${keen.user_agent}";
+
+/// Replaces the IP and user agent placeholders in string values (whole-string matches only).
+fn substitute(v: &mut Value, ctx: &RequestCtx) {
+    match v {
+        Value::String(s) if s == IP_PLACEHOLDER => *v = ctx.ip.clone().map(Value::String).unwrap_or(Value::Null),
+        Value::String(s) if s == UA_PLACEHOLDER => *v = ctx.user_agent.clone().map(Value::String).unwrap_or(Value::Null),
+        Value::Array(a) => a.iter_mut().for_each(|x| substitute(x, ctx)),
+        Value::Object(m) => m.values_mut().for_each(|x| substitute(x, ctx)),
+        _ => {}
+    }
+}
+
 /// Context for preparing events.
 pub struct Preparer<'a> {
     pub max_event_bytes: usize,
@@ -106,8 +127,9 @@ pub struct Preparer<'a> {
 impl Preparer<'_> {
     /// Validates an event and fills in the reserved metadata. `autofill` (from a restricted key)
     /// overrides client properties.
-    pub fn prepare(&self, collection: &str, ev: Value, autofill: Option<&Map<String, Value>>, now: DateTime<Utc>) -> Result<StoredEvent, ValidationError> {
+    pub fn prepare(&self, collection: &str, mut ev: Value, autofill: Option<&Map<String, Value>>, ctx: &RequestCtx, now: DateTime<Utc>) -> Result<StoredEvent, ValidationError> {
         validate_collection(collection)?;
+        substitute(&mut ev, ctx);
         let Value::Object(mut ev) = ev else {
             return Err(invalid("InvalidEventError", "event must be a JSON object"));
         };
@@ -135,6 +157,19 @@ impl Preparer<'_> {
         meta.insert("created_at".into(), Value::String(fmt_time(&now)));
         meta.insert("id".into(), Value::String(id.clone()));
         let mut ev = Value::Object(ev);
+        if crate::standard::is_standard(collection) {
+            crate::standard::validate(collection, &ev)?;
+            if lookup(&ev, "ip_address").is_none_or(Value::is_null) {
+                if let Some(ip) = &ctx.ip {
+                    set_path(&mut ev, "ip_address", Value::String(ip.clone()));
+                }
+            }
+            if lookup(&ev, "user_agent.raw").is_none_or(Value::is_null) {
+                if let Some(ua) = &ctx.user_agent {
+                    set_path(&mut ev, "user_agent.raw", Value::String(ua.clone()));
+                }
+            }
+        }
         let mut meta = Value::Object(meta);
         apply_addons(&mut ev, &mut meta, self.geo)?;
         crate::standard::enrich(collection, &mut ev, &meta, self.geo);

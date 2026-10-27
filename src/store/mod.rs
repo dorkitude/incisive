@@ -411,7 +411,7 @@ impl Engine {
                 }
             }
         }
-        let loaded: Vec<Arc<Loaded>> = futures::stream::iter(objects.iter().map(|(k, w)| self.load(k, *w)))
+        let loaded: Vec<Arc<Loaded>> = futures::stream::iter(objects.into_iter().map(|(k, w)| async move { self.load(&k, w).await }))
             .buffered(16)
             .try_collect()
             .await?;

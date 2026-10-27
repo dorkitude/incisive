@@ -357,9 +357,30 @@ pub struct Executor<'a> {
     pub engine: &'a Engine,
     pub limits: Limits,
     pub now: DateTime<Utc>,
+    /// Events read by queries run so far, for execution metadata.
+    pub scanned: std::sync::atomic::AtomicUsize,
 }
 
-impl Executor<'_> {
+/// A predicate over stored events for deletes: the timeframe (on the event timestamp) and filters.
+pub fn event_matcher(filters: &[Filter], range: Option<Range>) -> Result<impl Fn(&Value) -> bool + Sync, QueryError> {
+    let compiled: Vec<Compiled> = filters.iter().map(compile).collect::<Result<_, _>>()?;
+    let (s, e) = range.map(|r| (r.start.timestamp_millis(), r.end.timestamp_millis())).unwrap_or((i64::MIN, i64::MAX));
+    Ok(move |ev: &Value| {
+        let ts = crate::event::event_ts(ev);
+        ts >= s
+            && ts < e
+            && compiled.iter().all(|f| {
+                let c = if f.path.is_empty() { Cell::Missing } else { crate::store::table::cell_at(ev, &f.path) };
+                f.test(&c, ts)
+            })
+    })
+}
+
+impl<'a> Executor<'a> {
+    pub fn new(engine: &'a Engine, limits: Limits, now: DateTime<Utc>) -> Executor<'a> {
+        Executor { engine, limits, now, scanned: Default::default() }
+    }
+
     /// Runs q for a project; `scope` filters (from restricted keys) are added to every query.
     pub async fn run(&self, project: &str, q: &Query, scope: &[Filter]) -> Result<Map<String, Value>, QueryError> {
         let zone = parse_timezone(q.timezone.as_ref()).map_err(|e| bad("InvalidTimezoneError", e))?;
@@ -513,6 +534,7 @@ impl Executor<'_> {
         let r = range.map(|r| (r.start.timestamp_millis(), r.end.timestamp_millis()));
         let batches = self.engine.scan(project, coll, r, paths, raw).await.map_err(internal)?;
         let n: usize = batches.iter().map(Batch::len).sum();
+        self.scanned.fetch_add(n, std::sync::atomic::Ordering::Relaxed);
         if n > self.limits.max_scan {
             return Err(bad("QueryLimitExceededError", format!("the query would scan more than {} events; narrow the timeframe", self.limits.max_scan)));
         }
