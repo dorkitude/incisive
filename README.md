@@ -12,10 +12,29 @@ and the credentials.
 
 ## Architecture
 
-```
-clients ──HTTP──▶ incisive ──▶ write-ahead log objects ──compaction──▶ Parquet segments
-                     │                 (object storage: the source of truth)
-                     └── queries ◀── NVMe disk cache ◀── manifests + segments + unabsorbed WAL
+```mermaid
+flowchart TB
+    clients(["Clients: browser tracker, pixels, SDKs, curl"])
+    clients --> api["HTTP API · /3.0/projects/{id}/…"]
+
+    api -- "events" --> commit["Group commit<br/>batches requests for a few ms"]
+    api -- "queries" --> query["Query engine<br/>filters, groups, intervals, funnels"]
+    api -- "accounts, keys" --> meta[("SQLite metadata")]
+    query --> cache[("NVMe disk cache<br/>+ decoded columns in memory")]
+
+    subgraph r2["R2 bucket: the source of truth"]
+        wal["wal/<br/>zstd NDJSON, one object per batch"]
+        segments["segments/<br/>Parquet, typed columns per property"]
+        manifests["manifests/<br/>segment list + schema per project"]
+        backups["backups/<br/>metadata snapshots"]
+        wal -- "compaction<br/>after 120 s or 32 objects" --> segments
+        segments -. "listed in" .-> manifests
+    end
+
+    commit -- "create-only put,<br/>then 201" --> wal
+    cache -- "on a miss" --> segments
+    query -. "not yet compacted" .-> wal
+    meta -- "every few minutes" --> backups
 ```
 
 - **Writes** are group-committed: requests arriving within a few milliseconds share one
