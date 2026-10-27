@@ -130,6 +130,13 @@ pub struct Geo {
     pub db_path: PathBuf,
 }
 
+impl Geo {
+    /// Whether a location database is configured.
+    pub fn enabled(&self) -> bool {
+        !self.db_path.as_os_str().is_empty()
+    }
+}
+
 
 impl Default for Server {
     fn default() -> Self {

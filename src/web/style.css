@@ -55,7 +55,7 @@ aside.side {
   padding: 20px 14px;
 }
 .brand { font-weight: 750; color: #e0e6ff; letter-spacing: -0.03em; font-size: 18px; padding: 0 8px; }
-.brand span { color: var(--magenta); }
+.brand img { display: block; height: 26px; width: auto; }
 .brand:hover { color: #e0e6ff; }
 .switcher { position: relative; }
 .switcher summary {
@@ -175,7 +175,8 @@ dl.opts dd { margin: 0; color: var(--text-2); }
 /* Sign-in */
 .center { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(1200px 600px at 50% -10%, rgba(122, 162, 247, 0.12), transparent 60%), var(--bg); }
 .login { width: 100%; max-width: 400px; }
-.login .brand { font-size: 28px; display: block; margin-bottom: 8px; padding: 0; }
+.login .brand { display: block; margin-bottom: 14px; padding: 0; }
+.login .brand img { height: 44px; }
 .login .card { padding: 24px; }
 .login h1 { margin-bottom: 4px; }
 .login .sub { margin-bottom: 18px; }

@@ -1,4 +1,9 @@
-# incisive
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="src/web/brand/incisive-logo-dark.svg">
+    <img src="src/web/brand/incisive-logo.svg" alt="Incisive" height="72">
+  </picture>
+</p>
 
 Event analytics on object storage. One Rust binary that takes JSON events over HTTP, stores them
 durably in an S3-compatible bucket (Cloudflare R2 in production), and answers analysis queries
@@ -86,7 +91,10 @@ configuration. The main sections:
   sign-in codes instead of sending them, for development).
 - `limits`: event and request sizes, batch size, per-project write and query rates, query
   concurrency and timeout, and caps on extractions, funnel actors, groups, intervals and scans.
-- `geo.db_path`: an optional MaxMind-format database for IP geolocation.
+- `geo.db_path`: an optional MaxMind-format city database for IP geolocation (country, region,
+  city, coordinates). The dev deployment uses DB-IP City Lite, refreshed monthly by
+  `scripts/update_geo.sh` and `deploy/incisive-geo.timer`; its license (CC BY 4.0) requires the
+  "IP Geolocation by DB-IP" credit the dashboard shows.
 
 Other commands: `create-project NAME [--owner EMAIL]` prints a new project's keys, `compact` folds
 all pending WAL now, `backup` snapshots metadata now.

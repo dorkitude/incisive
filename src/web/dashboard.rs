@@ -7,7 +7,7 @@ use crate::store::Engine;
 use anyhow::Result;
 use std::collections::{HashMap, HashSet};
 
-const PATHS: [&str; 16] = [
+const PATHS: [&str; 18] = [
     "visitor.id",
     "session.id",
     "session.elapsed_seconds",
@@ -24,6 +24,8 @@ const PATHS: [&str; 16] = [
     "os.name",
     "device.type",
     "user_agent.is_bot",
+    "geo.city",
+    "geo.country_code",
 ];
 
 #[derive(Default, Clone, Copy, Debug)]
@@ -72,6 +74,7 @@ pub struct Report {
     pub sources: Vec<Row>,
     pub campaigns: Vec<Row>,
     pub countries: Vec<Row>,
+    pub cities: Vec<Row>,
     pub browsers: Vec<Row>,
     pub oses: Vec<Row>,
     pub devices: Vec<Row>,
@@ -171,6 +174,13 @@ async fn aggregate(engine: &Engine, project: &str, range: Range, bks: &[Range], 
                     }
                     b.landing.add(text(at(5, i)).or(text(at(3, i))).unwrap_or("(unknown)"), visitor);
                     b.countries.add(text(at(11, i)).unwrap_or("Unknown"), visitor);
+                    if let Some(city) = text(at(16, i)) {
+                        let label = match text(at(17, i)) {
+                            Some(cc) => format!("{city}, {cc}"),
+                            None => city.to_string(),
+                        };
+                        b.cities.add(&label, visitor);
+                    }
                     b.browsers.add(text(at(12, i)).unwrap_or("Unknown"), visitor);
                     b.oses.add(text(at(13, i)).unwrap_or("Unknown"), visitor);
                     b.devices.add(text(at(14, i)).unwrap_or("unknown"), visitor);
@@ -202,6 +212,7 @@ struct Breakdowns {
     sources: Counter,
     campaigns: Counter,
     countries: Counter,
+    cities: Counter,
     browsers: Counter,
     oses: Counter,
     devices: Counter,
@@ -225,6 +236,7 @@ pub async fn report(engine: &Engine, project: &str, range: Range, interval: &str
         sources: b.sources.top(10),
         campaigns: b.campaigns.top(10),
         countries: b.countries.top(10),
+        cities: b.cities.top(10),
         browsers: b.browsers.top(8),
         oses: b.oses.top(8),
         devices: b.devices.top(5),

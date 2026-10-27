@@ -8,7 +8,7 @@ mod pages;
 use crate::api::St;
 use crate::auth;
 use crate::meta::User;
-use axum::extract::{FromRequestParts, State};
+use axum::extract::{FromRequestParts, Path, State};
 use axum::http::{header, request::Parts, HeaderMap, StatusCode};
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
@@ -45,12 +45,30 @@ pub fn router(st: St) -> Router {
         .route("/app/p/{pid}/settings", get(pages::settings_page).post(pages::rename_project))
         .route("/js/incisive.js", get(tracker_js))
         .route("/static/style.css", get(style_css))
-        .route("/favicon.ico", get(|| async { StatusCode::NO_CONTENT }))
+        .route("/static/brand/{file}", get(brand))
+        .route("/favicon.ico", get(|| brand(Path("favicon.svg".to_string()))))
         .with_state(st)
 }
 
 async fn tracker_js() -> Response {
     ([(header::CONTENT_TYPE, "application/javascript; charset=utf-8"), (header::CACHE_CONTROL, "public, max-age=3600")], TRACKER_JS).into_response()
+}
+
+/// Logo and icon files from `src/web/brand/`.
+const BRAND: [(&str, &str); 6] = [
+    ("favicon.svg", include_str!("brand/favicon.svg")),
+    ("incisive-icon.svg", include_str!("brand/incisive-icon.svg")),
+    ("incisive-icon-dark.svg", include_str!("brand/incisive-icon-dark.svg")),
+    ("incisive-app-icon.svg", include_str!("brand/incisive-app-icon.svg")),
+    ("incisive-logo.svg", include_str!("brand/incisive-logo.svg")),
+    ("incisive-logo-dark.svg", include_str!("brand/incisive-logo-dark.svg")),
+];
+
+async fn brand(Path(file): Path<String>) -> Response {
+    match BRAND.iter().find(|(name, _)| *name == file) {
+        Some((_, svg)) => ([(header::CONTENT_TYPE, "image/svg+xml"), (header::CACHE_CONTROL, "public, max-age=86400")], *svg).into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
 }
 
 async fn style_css() -> Response {

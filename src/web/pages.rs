@@ -32,6 +32,8 @@ fn head(title: &str) -> Markup {
                 meta name="viewport" content="width=device-width, initial-scale=1";
                 meta name="theme-color" content="#16161e";
                 title { (title) " · Incisive" }
+                link rel="icon" type="image/svg+xml" href="/static/brand/favicon.svg";
+                link rel="apple-touch-icon" href="/static/brand/incisive-app-icon.svg";
                 link rel="stylesheet" href=(format!("/static/style.css?v={}", *STYLE_VERSION));
             }
         }
@@ -121,7 +123,7 @@ pub(super) fn layout(st: &St, u: &WebUser, p: &Project, tab: Tab, title: &str, b
         body {
             div.shell {
                 aside.side {
-                    a.brand href="/app" { "incisive" span { "." } }
+                    a.brand href="/app" { img src="/static/brand/incisive-logo-dark.svg" alt="Incisive"; }
                     details.switcher {
                         summary { span { (p.name) } }
                         div.menu {
@@ -182,7 +184,7 @@ pub fn login_page(error: Option<&str>) -> String {
         body {
             div.center {
                 div.login {
-                    span.brand { "incisive" span { "." } }
+                    span.brand { img src="/static/brand/incisive-logo-dark.svg" alt="Incisive"; }
                     p.sub { "Event analytics on object storage. Sign in or create an account. We'll email you a 6-digit code." }
                     div.card {
                         @if let Some(e) = error { div.notice.err { (e) } }
@@ -206,7 +208,7 @@ pub fn code_page(email: &str, error: Option<&str>) -> String {
     html! {
         (head("Enter your code"))
         body { div.center { div.login {
-            span.brand { "incisive" span { "." } }
+            span.brand { img src="/static/brand/incisive-logo-dark.svg" alt="Incisive"; }
             div.card {
                 h1 { "Check your email ✉️" }
                 p.sub { "We sent a 6-digit code to " b { (email) } ". It expires in 15 minutes." }
@@ -563,12 +565,17 @@ pub async fn dashboard(State(st): State<St>, u: WebUser, Path(pid): Path<String>
             (bars("Landing pages", "Page", "Sessions", &report.landing))
         }
         h3.section { "Acquisition" }
-        div.grid.g2 {
+        div.grid.g3 {
             (bars("Channels", "Channel", "Sessions", &report.channels))
             (bars("Sources", "Source", "Sessions", &report.sources))
             (bars("Campaigns", "utm_campaign", "Sessions", &report.campaigns))
-            (bars("Countries", "Country", "Sessions", &report.countries))
         }
+        h3.section { "Location" }
+        div.grid.g2 {
+            (bars("Countries", "Country", "Sessions", &report.countries))
+            (bars("Cities", "City", "Sessions", &report.cities))
+        }
+        @if st.cfg.geo.enabled() { p.footnote { "Locations from IP addresses: " a href="https://db-ip.com" { "IP Geolocation by DB-IP" } "." } }
         h3.section { "Technology" }
         div.grid.g3 {
             (bars("Devices", "Device", "Sessions", &report.devices))

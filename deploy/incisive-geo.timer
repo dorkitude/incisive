@@ -1,0 +1,9 @@
+[Unit]
+Description=Refresh the Incisive IP geolocation database monthly
+
+[Timer]
+OnCalendar=*-*-03 04:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -29,3 +29,7 @@ backup_interval_secs = 300
 resend_url = "https://resend-incisive-dev.int.exe.xyz"
 from = "Incisive <login@dev.tryincisive.com>"
 log_only = false
+
+[geo]
+# DB-IP City Lite, refreshed monthly by deploy/incisive-geo.timer.
+db_path = "/var/lib/incisive/geo/dbip-city-lite.mmdb"
