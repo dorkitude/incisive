@@ -1,0 +1,140 @@
+[
+ {
+  "key": "24077ACBCB198BAAA2110EDDB673282F8E34909FD823A15C55A6253A664BE368",
+  "options": {
+   "filters": [
+    {
+     "property_name": "accountId",
+     "operator": "eq",
+     "property_value": "123456"
+    }
+   ]
+  },
+  "json_len": 91,
+  "scoped_key": "f0e7ba71b3ff905b372fb820740bbd42ada8ae36796055aef2c19093836bdb75c53342c8e5ddf8a622655c10c112b868c47dd7130cebae809c9a93b4ffacffd92c76ee4096d59fb72d996e5e42d90923a61a4359870ec57cbb95c7c283553fc0f796b75cf3fd99f1b251d99320be9d6d"
+ },
+ {
+  "key": "24077ACBCB198BAAA2110EDDB673282F8E34909FD823A15C55A6253A664BE368",
+  "options": {
+   "allowed_operations": [
+    "read"
+   ]
+  },
+  "json_len": 32,
+  "scoped_key": "66602e2da55ccb3544b2c2cc156b4abfdc0a2be83020f3f68a7fa6f841ac28494f04d5dae3199b0ace97de02089c8292"
+ },
+ {
+  "key": "24077ACBCB198BAAA2110EDDB673282F8E34909FD823A15C55A6253A664BE368",
+  "options": {
+   "a": "bcdefghij"
+  },
+  "json_len": 18,
+  "scoped_key": "fd03bdeaf9612fbf9f759ce1fd792bcc103ccaf5089c1ff8ac88bd430f57d5ead98cd0d87cd2bdd98086f6a502f2eac5"
+ },
+ {
+  "key": "24077ACBCB198BAAA2110EDDB673282F8E34909FD823A15C55A6253A664BE368",
+  "options": {
+   "abcdefghijklmnopqrstuvwxy": "z"
+  },
+  "json_len": 34,
+  "scoped_key": "5ac80e2bde58298807ae8706b8317dcfbb54fcb7d3817e0939ff58e965cc5c48e6dd8015f18965c41b1f42ad8affe918b27f9c9b0b5825dd1dc11dd895a8b00b"
+ },
+ {
+  "key": "24077ACBCB198BAAA2110EDDB673282F8E34909FD823A15C55A6253A664BE368",
+  "options": {},
+  "json_len": 2,
+  "scoped_key": "65e4703b1cb9470e38a7d8363265fc60016b0ab23b415dff586ba0f54029a04d"
+ },
+ {
+  "key": "ab428324dbdbcfe744",
+  "options": {
+   "filters": [
+    {
+     "property_name": "accountId",
+     "operator": "eq",
+     "property_value": "123456"
+    }
+   ]
+  },
+  "json_len": 91,
+  "scoped_key": "de3bd4955b7bde4c217a6ed07f9d116cb3b7b996ba11f6bb22b225a3e54459968a32a42156f32c4a1bbdce493bdaa1a56847eb0f38b1bb81c718f396e6db98578f441ae7e9c436a3025ece18436d1a684b438c4b9ff56d640f884733aceec9dcbe8a7f8db25ed9d8e9295059b2a1c0c7"
+ },
+ {
+  "key": "ab428324dbdbcfe744",
+  "options": {
+   "allowed_operations": [
+    "read"
+   ]
+  },
+  "json_len": 32,
+  "scoped_key": "bfd84dede29b885c371168dbe186cc51ab0fb7d3983d0d8149f2db87b04e50d4a8f646dcbf3de097c86404130dc719c5"
+ },
+ {
+  "key": "ab428324dbdbcfe744",
+  "options": {
+   "a": "bcdefghij"
+  },
+  "json_len": 18,
+  "scoped_key": "156c4810c2e1df5a0ccf439a38ecda2e8bb0aa1c9b092e6159713091140544ab41f4cba011455345888a22118f6125cd"
+ },
+ {
+  "key": "ab428324dbdbcfe744",
+  "options": {
+   "abcdefghijklmnopqrstuvwxy": "z"
+  },
+  "json_len": 34,
+  "scoped_key": "49f2528545d7a9f48fdb306d9997a9095d6fb1c786a2ec9b0e8440fd730fa0e0f47f3f62981fbc984a6c609678bdbe88f169936c229fa3972e987607936fe4d64e6bcb9afabdbeae2d1190fd1004694f"
+ },
+ {
+  "key": "ab428324dbdbcfe744",
+  "options": {},
+  "json_len": 2,
+  "scoped_key": "57f7d0d5a898b3982fb447b2031086c6ae892b815678df669b731152211002d540e1b39d0d770ba168e9589aa45e1afd"
+ },
+ {
+  "key": "0123456789abcdef0123456789abcdef",
+  "options": {
+   "filters": [
+    {
+     "property_name": "accountId",
+     "operator": "eq",
+     "property_value": "123456"
+    }
+   ]
+  },
+  "json_len": 91,
+  "scoped_key": "81fdb134c064ec7092de4d8844fd8dc10cc3a8f118409425973d4fa2ce7c4ca32f72b1f1cd952609ddaf9809e0e59e66895479b12fa21190fc0aedb36635b5802928ebe7ee3de08b6a6eaadcf1465c2743d5cd578053f7320e8c5768a47894e8a689777fc6bbf5a9caf06786dc47fe2f"
+ },
+ {
+  "key": "0123456789abcdef0123456789abcdef",
+  "options": {
+   "allowed_operations": [
+    "read"
+   ]
+  },
+  "json_len": 32,
+  "scoped_key": "3808086431cd48be5efe95ab03ebbb24436db658b111e81db26c9b29af50ee00379e84cb2c2fd531f87ac9ad2f917021"
+ },
+ {
+  "key": "0123456789abcdef0123456789abcdef",
+  "options": {
+   "a": "bcdefghij"
+  },
+  "json_len": 18,
+  "scoped_key": "a5993904bc9e100d8bc2ee9c0acabc18224a8565b4d5c78a0ec9e9555b91072d18ff1c68cdba8d8d117b5e78a0961428"
+ },
+ {
+  "key": "0123456789abcdef0123456789abcdef",
+  "options": {
+   "abcdefghijklmnopqrstuvwxy": "z"
+  },
+  "json_len": 34,
+  "scoped_key": "e84a56926d7aa8b22493b5621390e071b43dda1ee6d0827a8530375477b3639373492321522557872aeb42bb4d15144ee1f0730c20e61e36182dcce4bcf7420aa47f2a2afdc6adee42eb559f2d75bdc2"
+ },
+ {
+  "key": "0123456789abcdef0123456789abcdef",
+  "options": {},
+  "json_len": 2,
+  "scoped_key": "c770e8a10b5f62491ee77ad6981baa002b4837e679bb6a6ba9b69c3a5a663850bf8e3726f0a10f7c647d8767cad3d737"
+ }
+]
