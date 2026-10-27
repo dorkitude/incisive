@@ -5,6 +5,10 @@
 }
 
 :8000 {
+	log {
+		output file /var/log/caddy/access.log
+		format json
+	}
 	@app host dev.tryincisive.com incisive.exe.xyz
 	handle @app {
 		reverse_proxy 127.0.0.1:8080 {
