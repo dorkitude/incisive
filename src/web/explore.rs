@@ -133,6 +133,10 @@ fn filters_from(ps: &[(String, String)], props: &BTreeMap<String, String>, p: &s
         .collect()
 }
 
+fn op_label(op: &str) -> &'static str {
+    OPS.iter().find(|(k, _)| *k == op).map_or("=", |(_, l)| l.split(" (").next().unwrap_or(l))
+}
+
 fn fmt_num(x: f64) -> String {
     if x.fract() == 0.0 && x.abs() < 1e15 {
         let s = fmt_int(x.abs() as u64);
@@ -977,31 +981,40 @@ pub async fn funnels_page(State(st): State<St>, u: WebUser, Path(pid): Path<Stri
     let tz = tz(&headers);
     let (rk, tf, _) = range(&ps);
     let actor = get(&ps, "actor").unwrap_or("visitor.id").to_string();
-    let mut steps: Vec<(String, String, String)> = {
-        let (sc, sp, sv) = (all(&ps, "sc"), all(&ps, "sp"), all(&ps, "sv"));
-        sc.iter().enumerate().filter(|(_, c)| schema.contains_key(**c)).map(|(i, c)| (c.to_string(), sp.get(i).unwrap_or(&"").to_string(), sv.get(i).unwrap_or(&"").to_string())).collect()
+    // (collection, property, operator, value)
+    let mut steps: Vec<(String, String, String, String)> = {
+        let (sc, sp, so, sv) = (all(&ps, "sc"), all(&ps, "sp"), all(&ps, "so"), all(&ps, "sv"));
+        let at = |v: &Vec<&str>, i: usize| v.get(i).copied().unwrap_or("").to_string();
+        sc.iter()
+            .enumerate()
+            .filter(|(_, c)| schema.contains_key(**c))
+            .map(|(i, c)| {
+                let op = so.get(i).copied().filter(|o| OPS.iter().any(|(k, _)| k == o)).unwrap_or("eq");
+                (c.to_string(), at(&sp, i), op.to_string(), at(&sv, i))
+            })
+            .collect()
     };
     if steps.is_empty() {
         // A starting point from what this project has.
         let custom = schema.keys().find(|c| !standard::is_standard(c));
         for c in [Some(standard::SESSION), Some(standard::PAGEVIEW), custom.map(String::as_str)].into_iter().flatten() {
             if schema.contains_key(c) && !steps.iter().any(|s| s.0 == c) {
-                steps.push((c.to_string(), String::new(), String::new()));
+                steps.push((c.to_string(), String::new(), "eq".into(), String::new()));
             }
         }
         if steps.is_empty() {
-            steps.extend(schema.keys().take(2).map(|c| (c.clone(), String::new(), String::new())));
+            steps.extend(schema.keys().take(2).map(|c| (c.clone(), String::new(), "eq".into(), String::new())));
         }
     }
     let all_props: BTreeMap<String, String> = schema.values().flat_map(|m| m.iter().map(|(a, b)| (a.clone(), b.clone()))).filter(|(p, _)| !p.starts_with("keen.")).collect();
     let result = if steps.len() >= 2 {
         let body: Vec<Value> = steps
             .iter()
-            .map(|(c, fp, fv)| {
+            .map(|(c, fp, fo, fv)| {
                 let mut s = json!({"event_collection": c, "actor_property": actor, "timeframe": tf, "timezone": tz});
                 if !fp.is_empty() {
                     let kind = schema.get(c).and_then(|m| m.get(fp)).map(String::as_str);
-                    s["filters"] = json!([{"property_name": fp, "operator": "eq", "property_value": typed(fv, kind, "eq")}]);
+                    s["filters"] = json!([{"property_name": fp, "operator": fo, "property_value": typed(fv, kind, fo)}]);
                 }
                 s
             })
@@ -1023,11 +1036,14 @@ pub async fn funnels_page(State(st): State<St>, u: WebUser, Path(pid): Path<Stri
                 form.card.qform method="get" {
                     div.field data-rows {
                         label.f { "Steps" }
-                        @for (c, fp, fv) in &steps {
+                        @for (c, fp, fo, fv) in &steps {
                             div.rep.step-row {
                                 (coll_select("sc", &schema, Some(c), false))
                                 input type="text" name="sp" value=(fp) list="props" placeholder="Only where property… (optional)";
-                                input type="text" name="sv" value=(fv) placeholder="equals value";
+                                div.opval {
+                                    select name="so" title="Operator" { @for (k, l) in OPS { option value=(k) selected[k == fo] { (l) } } }
+                                    input type="text" name="sv" value=(fv) placeholder="value";
+                                }
                                 button.ghost.small type="button" data-remove title="Remove step" { "×" }
                             }
                         }
@@ -1047,13 +1063,13 @@ pub async fn funnels_page(State(st): State<St>, u: WebUser, Path(pid): Path<Stri
                                 @if counts.len() >= 2 { span.muted { "Overall " b { (format!("{:.1}%", counts.last().unwrap() / first * 100.0)) } } }
                             }
                             div.funnel {
-                                @for (i, (n, (c, fp, fv))) in counts.iter().zip(&steps).enumerate() {
+                                @for (i, (n, (c, fp, fo, fv))) in counts.iter().zip(&steps).enumerate() {
                                     @let prev = if i == 0 { *n } else { counts[i - 1] };
                                     div.fstep {
                                         div.fl {
                                             span.step { (i + 1) }
                                             code { (c) }
-                                            @if !fp.is_empty() { span.muted.small { " where " (fp) " = " (fv) } }
+                                            @if !fp.is_empty() { span.muted.small { " where " (fp) " " (op_label(fo)) " " (fv) } }
                                         }
                                         div.fb { div style=(format!("width:{:.1}%", n / first * 100.0)) {} }
                                         div.fn {

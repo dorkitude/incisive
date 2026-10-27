@@ -247,6 +247,7 @@ input.otp { font-size: 26px; letter-spacing: 0.35em; text-align: center; font-fa
 .frow button[data-remove] { position: absolute; top: -9px; right: -9px; width: 22px; height: 22px; padding: 0; border-radius: 50%; background: var(--surface-2); line-height: 1; }
 .step-row { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; background: var(--bg-dark); position: relative; }
 .step-row select, .step-row input { padding: 6px 8px; }
+.step-row .opval { display: grid; grid-template-columns: minmax(0, 9.5em) 1fr; gap: 6px; }
 .step-row button[data-remove] { position: absolute; top: -9px; right: -9px; width: 22px; height: 22px; padding: 0; border-radius: 50%; background: var(--surface-2); line-height: 1; }
 table.profile .pill { max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
 .hform { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
