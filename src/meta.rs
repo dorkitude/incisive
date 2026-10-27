@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 pub const LOGIN_TOKEN_TTL_SECS: i64 = 15 * 60;
+pub const MAX_CODE_ATTEMPTS: i64 = 5;
 pub const SESSION_TTL_SECS: i64 = 400 * 24 * 3600;
 
 const SCHEMA: &str = r#"
@@ -174,6 +175,10 @@ impl Meta {
         let conn = Connection::open(path).with_context(|| format!("opening {}", path.display()))?;
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;")?;
         conn.execute_batch(SCHEMA)?;
+        // Columns added after the first release.
+        for col in ["code_hash TEXT", "attempts INTEGER NOT NULL DEFAULT 0"] {
+            let _ = conn.execute(&format!("ALTER TABLE login_tokens ADD COLUMN {col}"), []);
+        }
         Ok(Arc::new(Meta { conn: Mutex::new(conn), path: path.to_path_buf(), keys: Mutex::default(), masters: Mutex::default() }))
     }
 
@@ -206,30 +211,40 @@ impl Meta {
         Ok((u, true))
     }
 
-    /// Creates a single-use login token for an email address and returns it.
-    pub fn create_login_token(&self, email: &str) -> Result<String> {
-        let token = auth::random_token();
+    /// Creates a 6-digit sign-in code for an email address, replacing any earlier unused code.
+    pub fn create_login_code(&self, email: &str) -> Result<String> {
+        let code = format!("{:06}", rand::random_range(0..1_000_000u32));
         let c = self.conn.lock();
-        c.execute("DELETE FROM login_tokens WHERE expires_at < ?1", [now() - 86400])?;
+        c.execute("DELETE FROM login_tokens WHERE expires_at < ?1 OR (email = ?2 AND used_at IS NULL)", params![now() - 86400, email])?;
+        // The row key is random; the code is checked against `code_hash`.
         c.execute(
-            "INSERT INTO login_tokens (token_hash, email, expires_at) VALUES (?1, ?2, ?3)",
-            params![auth::sha256_hex(&token), email, now() + LOGIN_TOKEN_TTL_SECS],
+            "INSERT INTO login_tokens (token_hash, email, expires_at, code_hash) VALUES (?1, ?2, ?3, ?4)",
+            params![auth::random_token(), email, now() + LOGIN_TOKEN_TTL_SECS, auth::sha256_hex(&format!("{email}:{code}"))],
         )?;
-        Ok(token)
+        Ok(code)
     }
 
-    /// Consumes a login token, returning its email if it is valid, unused and unexpired.
-    pub fn consume_login_token(&self, token: &str) -> Result<Option<String>> {
+    /// Checks a sign-in code. A code works once, within 15 minutes, and is burned after
+    /// `MAX_CODE_ATTEMPTS` wrong guesses.
+    pub fn consume_login_code(&self, email: &str, code: &str) -> Result<bool> {
         let c = self.conn.lock();
-        let h = auth::sha256_hex(token);
-        let row: Option<(String, i64, Option<i64>)> =
-            c.query_row("SELECT email, expires_at, used_at FROM login_tokens WHERE token_hash = ?1", [&h], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).optional()?;
-        let Some((email, exp, used)) = row else { return Ok(None) };
-        if used.is_some() || exp < now() {
-            return Ok(None);
+        let row: Option<(String, String, i64)> = c
+            .query_row(
+                "SELECT token_hash, code_hash, attempts FROM login_tokens WHERE email = ?1 AND used_at IS NULL AND expires_at >= ?2 AND code_hash IS NOT NULL",
+                params![email, now()],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .optional()?;
+        let Some((key, want, attempts)) = row else { return Ok(false) };
+        if attempts >= MAX_CODE_ATTEMPTS {
+            return Ok(false);
         }
-        c.execute("UPDATE login_tokens SET used_at = ?1 WHERE token_hash = ?2", params![now(), h])?;
-        Ok(Some(email))
+        if auth::sha256_hex(&format!("{email}:{}", code.trim())) == want {
+            c.execute("UPDATE login_tokens SET used_at = ?1 WHERE token_hash = ?2", params![now(), key])?;
+            return Ok(true);
+        }
+        c.execute("UPDATE login_tokens SET attempts = attempts + 1 WHERE token_hash = ?1", [key])?;
+        Ok(false)
     }
 
     pub fn create_session(&self, user_id: &str) -> Result<String> {
@@ -523,9 +538,11 @@ mod tests {
     fn login_flow_and_keys() {
         let dir = tempfile::tempdir().unwrap();
         let m = Meta::open(&dir.path().join("m.sqlite")).unwrap();
-        let t = m.create_login_token("a@example.com").unwrap();
-        assert_eq!(m.consume_login_token(&t).unwrap().as_deref(), Some("a@example.com"));
-        assert_eq!(m.consume_login_token(&t).unwrap(), None, "single use");
+        let t = m.create_login_code("a@example.com").unwrap();
+        assert_eq!(t.len(), 6);
+        assert!(!m.consume_login_code("b@example.com", &t).unwrap(), "codes belong to one address");
+        assert!(m.consume_login_code("a@example.com", &t).unwrap());
+        assert!(!m.consume_login_code("a@example.com", &t).unwrap(), "single use");
         let (u, created) = m.ensure_user("a@example.com").unwrap();
         assert!(created);
         let s = m.create_session(&u.id).unwrap();
@@ -552,11 +569,27 @@ mod tests {
     }
 
     #[test]
-    fn expired_login_token() {
+    fn expired_login_code() {
         let dir = tempfile::tempdir().unwrap();
         let m = Meta::open(&dir.path().join("m.sqlite")).unwrap();
-        let t = m.create_login_token("a@example.com").unwrap();
+        let t = m.create_login_code("a@example.com").unwrap();
         m.conn.lock().execute("UPDATE login_tokens SET expires_at = ?1", [now() - 1]).unwrap();
-        assert_eq!(m.consume_login_token(&t).unwrap(), None);
+        assert!(!m.consume_login_code("a@example.com", &t).unwrap());
+    }
+
+    #[test]
+    fn code_attempts_are_limited_and_new_codes_replace_old() {
+        let dir = tempfile::tempdir().unwrap();
+        let m = Meta::open(&dir.path().join("m.sqlite")).unwrap();
+        let old = m.create_login_code("a@example.com").unwrap();
+        let t = m.create_login_code("a@example.com").unwrap();
+        if old != t {
+            assert!(!m.consume_login_code("a@example.com", &old).unwrap(), "an earlier code stops working");
+        }
+        let wrong = if t == "000000" { "111111" } else { "000000" };
+        for _ in 0..MAX_CODE_ATTEMPTS {
+            assert!(!m.consume_login_code("a@example.com", wrong).unwrap());
+        }
+        assert!(!m.consume_login_code("a@example.com", &t).unwrap(), "burned after too many wrong guesses");
     }
 }

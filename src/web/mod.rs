@@ -7,7 +7,7 @@ mod pages;
 use crate::api::St;
 use crate::auth;
 use crate::meta::User;
-use axum::extract::{FromRequestParts, Query, State};
+use axum::extract::{FromRequestParts, State};
 use axum::http::{header, request::Parts, HeaderMap, StatusCode};
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
@@ -24,7 +24,7 @@ pub fn router(st: St) -> Router {
     Router::new()
         .route("/", get(home))
         .route("/login", get(login_page).post(login_submit))
-        .route("/auth/verify", get(verify_page).post(verify_submit))
+        .route("/login/code", post(code_submit))
         .route("/logout", post(logout))
         .route("/app", get(app_home))
         .route("/app/projects", post(create_project))
@@ -144,35 +144,30 @@ async fn login_submit(State(st): State<St>, Form(form): Form<HashMap<String, Str
         return Html(pages::login_page(Some("Please enter a valid email address."))).into_response();
     }
     if !login_allowed(&email) {
-        return Html(pages::login_page(Some("Too many sign-in links requested for this address. Please wait a few minutes."))).into_response();
+        return Html(pages::login_page(Some("Too many codes requested for this address. Please wait a few minutes."))).into_response();
     }
-    let token = match st.meta.create_login_token(&email) {
-        Ok(t) => t,
+    let code = match st.meta.create_login_code(&email) {
+        Ok(c) => c,
         Err(e) => return internal(e),
     };
-    let link = format!("{}/auth/verify?token={token}", st.cfg.server.public_url.trim_end_matches('/'));
-    let text = format!("Sign in to Incisive:\n\n{link}\n\nThis link expires in 15 minutes and works once. If you did not ask for it, you can ignore this email.\n");
-    let html = pages::email_html(&link);
-    if let Err(e) = st.mailer.send(&email, "Your Incisive sign-in link", &text, &html).await {
+    // A short, plain message with no links or buttons, which mail filters treat as transactional.
+    let text = format!("Your Incisive sign-in code is {code}\n\nEnter it on the sign-in page. It expires in 15 minutes and works once. If you did not ask for it, you can ignore this email.\n");
+    let html = pages::code_email_html(&code);
+    if let Err(e) = st.mailer.send(&email, &format!("{code} is your Incisive sign-in code"), &text, &html).await {
         tracing::error!(error = %e, "sending sign-in email failed");
         return Html(pages::login_page(Some("We could not send the email just now. Please try again in a minute."))).into_response();
     }
-    Html(pages::check_email_page(&email)).into_response()
+    Html(pages::code_page(&email, None)).into_response()
 }
 
-/// Shows a button that signs in with a POST, so link scanners that fetch the URL do not use up
-/// the one-time token. Browsers with scripts enabled continue automatically.
-async fn verify_page(Query(q): Query<HashMap<String, String>>) -> Html<String> {
-    Html(pages::verify_page(q.get("token").map(String::as_str).unwrap_or("")))
-}
-
-async fn verify_submit(State(st): State<St>, Form(form): Form<HashMap<String, String>>) -> Response {
-    let token = form.get("token").cloned().unwrap_or_default();
-    let email = match st.meta.consume_login_token(&token) {
-        Ok(Some(e)) => e,
-        Ok(None) => return Html(pages::login_page(Some("That sign-in link is invalid, already used, or expired. Request a new one below."))).into_response(),
+async fn code_submit(State(st): State<St>, Form(form): Form<HashMap<String, String>>) -> Response {
+    let email = form.get("email").map(|s| s.trim().to_lowercase()).unwrap_or_default();
+    let code: String = form.get("code").map(|s| s.chars().filter(char::is_ascii_digit).collect()).unwrap_or_default();
+    match st.meta.consume_login_code(&email, &code) {
+        Ok(true) => {}
+        Ok(false) => return Html(pages::code_page(&email, Some("That code is wrong or has expired. Check the latest email, or request a new code."))).into_response(),
         Err(e) => return internal(e),
-    };
+    }
     let result = (|| -> anyhow::Result<String> {
         let (user, created) = st.meta.ensure_user(&email)?;
         if created || st.meta.projects_for(&user.id)?.is_empty() {

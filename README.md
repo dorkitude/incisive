@@ -3,7 +3,7 @@
 Event analytics on object storage. One Rust binary that takes JSON events over HTTP, stores them
 durably in an S3-compatible bucket (Cloudflare R2 in production), and answers analysis queries
 (counts, uniques, sums, percentiles, funnels, extractions, grouped and bucketed by time) from
-columnar segments cached on local NVMe. It ships with a web app: email sign-in, API key management,
+columnar segments cached on local NVMe. It ships with a web app: sign-in with emailed 6-digit codes, API key management,
 a tracking pixel generator, and a web analytics dashboard built on a standard pageview schema.
 
 The HTTP API follows the widely used `/3.0/projects/{project_id}/...` event-analytics contract, so
@@ -65,7 +65,7 @@ configuration. The main sections:
 - `wal`, `compaction`: group commit window and compaction thresholds.
 - `meta`: SQLite `path` and `backup_interval_secs`.
 - `email`: a Resend-compatible `resend_url`, optional `api_key`, `from`, and `log_only` (print
-  sign-in links instead of sending them, for development).
+  sign-in codes instead of sending them, for development).
 - `limits`: event and request sizes, batch size, per-project write and query rates, query
   concurrency and timeout, and caps on extractions, funnel actors, groups, intervals and scans.
 - `geo.db_path`: an optional MaxMind-format database for IP geolocation.

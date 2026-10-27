@@ -95,7 +95,7 @@ pub fn login_page(error: Option<&str>) -> String {
             div.center {
                 div.login {
                     span.brand { "incisive" span style="color:var(--accent)" { "." } }
-                    p.sub { "Event analytics on object storage. Sign in or create an account. We'll email you a link." }
+                    p.sub { "Event analytics on object storage. Sign in or create an account. We'll email you a 6-digit code." }
                     div.card {
                         @if let Some(e) = error { div.notice style="margin-bottom:14px" { (e) } }
                         form method="post" action="/login" {
@@ -103,10 +103,10 @@ pub fn login_page(error: Option<&str>) -> String {
                                 label.f for="email" { "Email" }
                                 input #email type="email" name="email" required autofocus autocomplete="email" placeholder="you@company.com";
                             }
-                            button type="submit" style="width:100%" { "Email me a sign-in link" }
+                            button type="submit" style="width:100%" { "Email me a sign-in code" }
                         }
                     }
-                    p.muted style="margin-top:14px;font-size:12.5px" { "Links expire after 15 minutes. Once signed in, you stay signed in on this browser." }
+                    p.muted style="margin-top:14px;font-size:12.5px" { "Codes expire after 15 minutes. Once signed in, you stay signed in on this browser." }
                 }
             }
         }
@@ -114,42 +114,42 @@ pub fn login_page(error: Option<&str>) -> String {
     .into_string()
 }
 
-pub fn check_email_page(email: &str) -> String {
+pub fn code_page(email: &str, error: Option<&str>) -> String {
     html! {
-        (head("Check your email"))
-        body { div.center { div.card.login {
-            h1 { "Check your email ✉️" }
-            p.sub { "We sent a sign-in link to " b { (email) } ". It expires in 15 minutes." }
-            a href="/login" { "Use a different address" }
+        (head("Enter your code"))
+        body { div.center { div.login {
+            span.brand { "incisive" span style="color:var(--accent)" { "." } }
+            div.card style="margin-top:14px" {
+                h1 { "Check your email ✉️" }
+                p.sub { "We sent a 6-digit code to " b { (email) } ". It expires in 15 minutes." }
+                @if let Some(e) = error { div.notice style="margin-bottom:14px" { (e) } }
+                form method="post" action="/login/code" {
+                    input type="hidden" name="email" value=(email);
+                    div.field {
+                        label.f for="code" { "Sign-in code" }
+                        input #code type="text" name="code" required autofocus inputmode="numeric" autocomplete="one-time-code"
+                            pattern="[0-9 ]{6,7}" maxlength="7" placeholder="123456"
+                            style="font-size:24px;letter-spacing:0.3em;text-align:center;font-family:var(--mono)";
+                    }
+                    button type="submit" style="width:100%" { "Sign in" }
+                }
+                form method="post" action="/login" style="margin-top:12px" {
+                    input type="hidden" name="email" value=(email);
+                    button.ghost type="submit" style="width:100%" { "Send a new code" }
+                }
+            }
+            p.muted style="margin-top:14px;font-size:12.5px" { a href="/login" { "Use a different address" } }
         } } }
     }
     .into_string()
 }
 
-pub fn verify_page(token: &str) -> String {
+pub fn code_email_html(code: &str) -> String {
     html! {
-        (head("Signing in"))
-        body { div.center { div.card.login {
-            h1 { "Signing you in…" }
-            form #f method="post" action="/auth/verify" {
-                input type="hidden" name="token" value=(token);
-                button type="submit" style="width:100%;margin-top:12px" { "Continue to Incisive" }
-            }
-            script { (PreEscaped("document.getElementById('f').submit();")) }
-        } } }
-    }
-    .into_string()
-}
-
-pub fn email_html(link: &str) -> String {
-    html! {
-        div style="font-family:-apple-system,Segoe UI,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#0b0b0b" {
-            p style="font-size:20px;font-weight:700;margin:0 0 16px" { "incisive" span style="color:#2a78d6" { "." } }
-            p { "Click below to sign in. The link expires in 15 minutes and works once." }
-            p style="margin:24px 0" {
-                a href=(link) style="background:#2a78d6;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600" { "Sign in to Incisive" }
-            }
-            p style="color:#7a7974;font-size:12px" { "If you did not ask for this email, you can ignore it." }
+        div style="font-family:-apple-system,Segoe UI,sans-serif;max-width:480px;color:#0b0b0b" {
+            p { "Your Incisive sign-in code is:" }
+            p style="font-size:28px;font-weight:700;letter-spacing:0.2em;font-family:ui-monospace,Menlo,monospace;margin:16px 0" { (code) }
+            p style="color:#52514e;font-size:13px" { "Enter it on the sign-in page. It expires in 15 minutes and works once. If you did not ask for it, you can ignore this email." }
         }
     }
     .into_string()
