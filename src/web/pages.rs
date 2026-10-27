@@ -32,7 +32,7 @@ fn head(title: &str) -> Markup {
                 meta name="viewport" content="width=device-width, initial-scale=1";
                 meta name="theme-color" content="#16161e";
                 title { (title) " · Incisive" }
-                link rel="icon" type="image/svg+xml" href="/static/brand/favicon.svg";
+                link rel="icon" type="image/svg+xml" href="/static/brand/incisive-icon.svg";
                 link rel="apple-touch-icon" href="/static/brand/incisive-app-icon.svg";
                 link rel="stylesheet" href=(format!("/static/style.css?v={}", *STYLE_VERSION));
             }

@@ -47,7 +47,7 @@ pub fn router(st: St) -> Router {
         .route("/app/ignore", post(ignore_me))
         .route("/static/style.css", get(style_css))
         .route("/static/brand/{file}", get(brand))
-        .route("/favicon.ico", get(|| brand(Path("favicon.svg".to_string()))))
+        .route("/favicon.ico", get(|| brand(Path("incisive-icon.svg".to_string()))))
         .with_state(st)
 }
 
