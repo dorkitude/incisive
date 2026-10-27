@@ -19,7 +19,7 @@ c := &incisive.Client{
     ReadKey:   "READ_KEY",   // falls back to MasterKey when empty
     MasterKey: "MASTER_KEY",
     BaseURL:   "https://analytics.example.com", // default http://localhost:8080
-    // APIVersion: "3.0" (default), HTTPClient: &http.Client{Timeout: 10 * time.Second}, UserAgent: "..."
+    // APIVersion: "1.0" (default), HTTPClient: &http.Client{Timeout: 10 * time.Second}, UserAgent: "..."
 }
 
 // Or read INCISIVE_PROJECT_ID, INCISIVE_WRITE_KEY, INCISIVE_READ_KEY,
@@ -68,7 +68,7 @@ buffered when the process exits without `Close` are lost.
 
 ## Analyses
 
-All analyses POST a JSON body to `/3.0/projects/{id}/queries/{analysis}` with the read
+All analyses POST a JSON body to `/1.0/projects/{id}/queries/{analysis}` with the read
 key and return a `*Result` (`Value` is the unwrapped `result`, `Envelope` the whole body).
 
 ```go

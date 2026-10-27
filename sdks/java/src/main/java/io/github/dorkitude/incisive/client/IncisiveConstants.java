@@ -7,7 +7,7 @@ public final class IncisiveConstants {
     /** Default server address (a locally running incisive server). */
     public static final String DEFAULT_BASE_URL = "http://localhost:8080";
     /** Default HTTP API version path segment. */
-    public static final String DEFAULT_API_VERSION = "3.0";
+    public static final String DEFAULT_API_VERSION = "1.0";
 
     /** Name of the reserved metadata object on every event (wire protocol literal). */
     public static final String RESERVED_PROPERTY = "keen";

@@ -3,7 +3,7 @@
 namespace Incisive\Client;
 
 /**
- * Route table for API version 3.0.
+ * Route table for API version 1.0.
  *
  * Each operation lists:
  *   - method:   HTTP verb

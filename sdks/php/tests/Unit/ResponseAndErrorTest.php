@@ -178,7 +178,7 @@ class ResponseAndErrorTest extends TestCase
         ]);
         $this->assertSame(['result' => 7], $client->count('c'));
         $this->assertSame('POST', $seen['method']);
-        $this->assertSame('http://example.invalid/3.0/projects/PID/queries/count', $seen['url']);
+        $this->assertSame('http://example.invalid/1.0/projects/PID/queries/count', $seen['url']);
         $this->assertSame('READ', $seen['headers']['Authorization']);
         $this->assertSame('{"event_collection":"c"}', $seen['body']);
     }

@@ -8,7 +8,7 @@ class PublishingTest < MockTest
     assert_equal({ "created" => true }, @client.publish(:signups, event))
     req = @server.last_request
     assert_equal "POST", req.method
-    assert_equal "/3.0/projects/#{PROJECT}/events/signups", req.path
+    assert_equal "/1.0/projects/#{PROJECT}/events/signups", req.path
     assert_headers req, WRITE
     assert_equal event, req.json_body
   end
@@ -16,19 +16,19 @@ class PublishingTest < MockTest
   def test_collection_name_escaping
     @server.respond(201, { "created" => true })
     @client.publish("a b/c?d#e%", { x: 1 })
-    assert_equal "/3.0/projects/#{PROJECT}/events/a%20b%2Fc%3Fd%23e%25", @server.last_request.path
+    assert_equal "/1.0/projects/#{PROJECT}/events/a%20b%2Fc%3Fd%23e%25", @server.last_request.path
   end
 
   def test_collection_name_keeps_sub_delims
     @server.respond(201, {})
     @client.publish("x:y@z!$&'()*+,;=-._~", {})
-    assert_equal "/3.0/projects/#{PROJECT}/events/x:y@z!$&'()*+,;=-._~", @server.last_request.path
+    assert_equal "/1.0/projects/#{PROJECT}/events/x:y@z!$&'()*+,;=-._~", @server.last_request.path
   end
 
   def test_add_event_alias
     @server.respond(201, { "created" => true })
     @client.add_event("c", { a: 1 })
-    assert_equal "/3.0/projects/#{PROJECT}/events/c", @server.last_request.path
+    assert_equal "/1.0/projects/#{PROJECT}/events/c", @server.last_request.path
   end
 
   def test_publish_batch
@@ -38,7 +38,7 @@ class PublishingTest < MockTest
     assert_equal resp, @client.publish_batch(body)
     req = @server.last_request
     assert_equal "POST", req.method
-    assert_equal "/3.0/projects/#{PROJECT}/events", req.path
+    assert_equal "/1.0/projects/#{PROJECT}/events", req.path
     assert_headers req, WRITE
     assert_equal body, req.json_body
   end
@@ -75,7 +75,7 @@ class PublishingTest < MockTest
   def test_beacon_and_redirect_url
     props = { "a" => "b?" }
     data = [JSON.generate(props)].pack("m0").tr("+/", "-_")
-    expected = "#{@server.url}/3.0/projects/#{PROJECT}/events/sign%20ups?api_key=#{WRITE}&data=#{data}"
+    expected = "#{@server.url}/1.0/projects/#{PROJECT}/events/sign%20ups?api_key=#{WRITE}&data=#{data}"
     assert_equal expected, @client.beacon_url("sign ups", props)
     assert_equal "#{expected}&redirect=http%3A%2F%2Fx.com%2F%3Fa%3D1",
                  @client.redirect_url("sign ups", props, "http://x.com/?a=1")

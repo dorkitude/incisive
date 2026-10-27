@@ -18,7 +18,7 @@ client = Incisive::Client.new(
   read_key:   "...",
   master_key: "...",
   api_url:    "http://localhost:8080", # the default; `base_url:` works too
-  api_version: "3.0",                   # the default
+  api_version: "1.0",                   # the default
   read_timeout: 300, open_timeout: 30,  # seconds (Net::HTTP defaults otherwise)
   proxy_url: "http://proxy:3128"        # optional
 )

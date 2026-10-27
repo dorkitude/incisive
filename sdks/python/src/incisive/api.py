@@ -8,7 +8,7 @@ from incisive import direction, exceptions, utilities
 from incisive.utilities import IncisiveKeys, escape_segment, requires_key
 
 DEFAULT_BASE_URL = "http://localhost:8080"
-DEFAULT_API_VERSION = "3.0"
+DEFAULT_API_VERSION = "1.0"
 
 
 def _json_or_none(response):

@@ -9,7 +9,7 @@ class QueryingTest < MockTest
     assert_equal 42, @client.count("purchases", timeframe: "this_7_days")
     req = @server.last_request
     assert_equal "GET", req.method
-    assert_equal "/3.0/projects/#{PROJECT}/queries/count", req.path
+    assert_equal "/1.0/projects/#{PROJECT}/queries/count", req.path
     assert_headers req, READ
     assert_nil req.body
     assert_equal({ "timeframe" => ["this_7_days"], "event_collection" => ["purchases"] }, req.params)
@@ -20,7 +20,7 @@ class QueryingTest < MockTest
       @server.respond(200, { "result" => a.to_s })
       assert_equal a.to_s, @client.public_send(a, "c", target_property: "price")
       req = @server.last_request
-      assert_equal "/3.0/projects/#{PROJECT}/queries/#{a}", req.path
+      assert_equal "/1.0/projects/#{PROJECT}/queries/#{a}", req.path
       assert_equal "price", req.param(:target_property)
       assert_equal "c", req.param(:event_collection)
     end
@@ -72,7 +72,7 @@ class QueryingTest < MockTest
     @server.respond(200, { "result" => [10, 5] })
     assert_equal [10, 5], @client.funnel(steps: steps)
     req = @server.last_request
-    assert_equal "/3.0/projects/#{PROJECT}/queries/funnel", req.path
+    assert_equal "/1.0/projects/#{PROJECT}/queries/funnel", req.path
     refute req.params.key?("event_collection")
     assert_equal JSON.parse(JSON.generate(steps)), req.json_param(:steps)
 
@@ -107,8 +107,8 @@ class QueryingTest < MockTest
     @server.respond(200, { "result" => 2 })
     assert_equal 2, @client.query(:count, "c", { timeframe: "this_2_days" })
     url = @client.query_url(:count, "c", { timeframe: "this_2_days" })
-    assert_equal "#{@server.url}/3.0/projects/#{PROJECT}/queries/count?timeframe=this_2_days&event_collection=c&api_key=#{READ}", url
-    assert_equal "#{@server.url}/3.0/projects/#{PROJECT}/queries/count?event_collection=c",
+    assert_equal "#{@server.url}/1.0/projects/#{PROJECT}/queries/count?timeframe=this_2_days&event_collection=c&api_key=#{READ}", url
+    assert_equal "#{@server.url}/1.0/projects/#{PROJECT}/queries/count?event_collection=c",
                  @client.query_url(:count, "c", {}, exclude_api_key: true)
   end
 

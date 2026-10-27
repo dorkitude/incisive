@@ -10,7 +10,7 @@ use Incisive\Exception\RuntimeException;
 use Incisive\Exception\TransferException;
 
 /**
- * Client for the Incisive analytics HTTP API (v3.0 routes).
+ * Client for the Incisive analytics HTTP API (v1.0 routes).
  *
  * Query-style methods accept either a collection name plus an argument array,
  * or a single argument array containing `event_collection`:
@@ -27,7 +27,7 @@ class IncisiveClient
 
     public const DEFAULT_BASE_URL = 'http://localhost:8080';
 
-    public const DEFAULT_API_VERSION = '3.0';
+    public const DEFAULT_API_VERSION = '1.0';
 
     /** Configuration keys that are never sent as request parameters. */
     private const RESERVED = ['projectId', 'masterKey', 'writeKey', 'readKey', 'organizationId', 'organizationKey'];
@@ -81,7 +81,7 @@ class IncisiveClient
      *
      * Recognised keys: projectId, writeKey, readKey, masterKey, organizationId,
      * organizationKey, baseUrl (default http://localhost:8080), version
-     * (default "3.0"), timeout (seconds, default 60), headers (extra request
+     * (default "1.0"), timeout (seconds, default 60), headers (extra request
      * headers), handler (callable(string $method, string $url, array $headers,
      * ?string $body, array $options): Response, replaces the HTTP transport).
      *

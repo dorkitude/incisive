@@ -13,17 +13,17 @@ namespace Incisive.Tests
         public void DefaultsToLocalhostAndVersion()
         {
             var s = new ProjectSettingsProvider("p1", writeKey: "w");
-            Assert.Equal("http://localhost:8080/3.0/", s.ServerUrl);
+            Assert.Equal("http://localhost:8080/1.0/", s.ServerUrl);
             Assert.Equal("http://localhost:8080", s.BaseUrl);
-            Assert.Equal("3.0", s.ApiVersion);
+            Assert.Equal("1.0", s.ApiVersion);
         }
 
         [Theory]
-        [InlineData("http://h:1", "http://h:1/3.0/")]
-        [InlineData("http://h:1/", "http://h:1/3.0/")]
-        [InlineData("http://h:1/3.0", "http://h:1/3.0/")]
-        [InlineData("http://h:1/3.0/", "http://h:1/3.0/")]
-        [InlineData("http://h:1/prefix", "http://h:1/prefix/3.0/")]
+        [InlineData("http://h:1", "http://h:1/1.0/")]
+        [InlineData("http://h:1/", "http://h:1/1.0/")]
+        [InlineData("http://h:1/1.0", "http://h:1/1.0/")]
+        [InlineData("http://h:1/1.0/", "http://h:1/1.0/")]
+        [InlineData("http://h:1/prefix", "http://h:1/prefix/1.0/")]
         public void ServerUrlNormalization(string input, string expected)
         {
             Assert.Equal(expected, new ProjectSettingsProvider("p", readKey: "r", serverUrl: input).ServerUrl);
@@ -61,7 +61,7 @@ namespace Incisive.Tests
                 Assert.Equal("m", s.MasterKey);
                 Assert.Equal("w", s.WriteKey);
                 Assert.Equal("r", s.ReadKey);
-                Assert.Equal("http://example.test:9000/3.0/", s.ServerUrl);
+                Assert.Equal("http://example.test:9000/1.0/", s.ServerUrl);
             }
             finally
             {
@@ -79,7 +79,7 @@ namespace Incisive.Tests
                 var s = new ProjectSettingsProviderFile(path);
                 Assert.Equal("fp", s.ProjectId);
                 Assert.Equal("r", s.ReadKey);
-                Assert.Equal("http://f:1/3.0/", s.ServerUrl);
+                Assert.Equal("http://f:1/1.0/", s.ServerUrl);
             }
             finally { System.IO.File.Delete(path); }
         }
@@ -105,7 +105,7 @@ namespace Incisive.Tests
 
             var r = Server.Last;
             Assert.Equal("POST", r.Method);
-            Assert.Equal("/3.0/projects/proj%201/events/purchases", r.RawPath);
+            Assert.Equal("/1.0/projects/proj%201/events/purchases", r.RawPath);
             Assert.Equal("WRITE", r.Header("Authorization"));
             Assert.StartsWith("application/json", r.Header("Content-Type"));
             Assert.StartsWith("incisive-dotnet/", r.Header("User-Agent"));
@@ -153,7 +153,7 @@ namespace Incisive.Tests
         {
             Server.Reply(201, new { created = true });
             await Client().AddEventAsync("my events/x?y", new { a = 1 });
-            Assert.Equal("/3.0/projects/proj%201/events/my%20events%2Fx%3Fy", Server.Last.RawPath);
+            Assert.Equal("/1.0/projects/proj%201/events/my%20events%2Fx%3Fy", Server.Last.RawPath);
         }
 
         [Fact]
@@ -181,7 +181,7 @@ namespace Incisive.Tests
 
             var r = Server.Last;
             Assert.Equal("POST", r.Method);
-            Assert.Equal("/3.0/projects/proj%201/events", r.RawPath);
+            Assert.Equal("/1.0/projects/proj%201/events", r.RawPath);
             Assert.Equal("WRITE", r.Header("Authorization"));
             var body = (JObject)r.BodyJson;
             var events = (JArray)body["purchases"];
@@ -234,12 +234,12 @@ namespace Incisive.Tests
             JArray all = await c.GetSchemasAsync();
             Assert.Equal("purchases", (string)all[0]["name"]);
             Assert.Equal("GET", Server.Requests[0].Method);
-            Assert.Equal("/3.0/projects/proj%201/events", Server.Requests[0].RawPath);
+            Assert.Equal("/1.0/projects/proj%201/events", Server.Requests[0].RawPath);
             Assert.Equal("READ", Server.Requests[0].Header("Authorization"));
 
             dynamic one = await c.GetSchemaAsync("purchases");
             Assert.Equal("num", (string)one.properties.price);
-            Assert.Equal("/3.0/projects/proj%201/events/purchases", Server.Requests[1].RawPath);
+            Assert.Equal("/1.0/projects/proj%201/events/purchases", Server.Requests[1].RawPath);
         }
 
         [Fact]
@@ -249,7 +249,7 @@ namespace Incisive.Tests
             Client().DeleteCollection("old");
             var r = Server.Last;
             Assert.Equal("DELETE", r.Method);
-            Assert.Equal("/3.0/projects/proj%201/events/old", r.RawPath);
+            Assert.Equal("/1.0/projects/proj%201/events/old", r.RawPath);
             Assert.Equal("MASTER", r.Header("Authorization"));
             Assert.Throws<IncisiveException>(() => Client(master: null).DeleteCollection("old"));
         }

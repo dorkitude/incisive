@@ -22,7 +22,7 @@ const config = {
 
   baseUrl: 'https://analytics.example.com', // default http://localhost:8080
   // or, equivalently: host: 'analytics.example.com', protocol: 'https'
-  version: '3.0',                           // API version path segment
+  version: '1.0',                           // API version path segment
 };
 ```
 
@@ -54,7 +54,7 @@ Every call returns a promise and also accepts a node-style `callback(err, res)`.
 
 Transports (`requestType` on the client or per `recordEvent({...})` call):
 
-- `fetch` (default): `POST /3.0/projects/{id}/events/{collection}` with `Authorization: <writeKey>`
+- `fetch` (default): `POST /1.0/projects/{id}/events/{collection}` with `Authorization: <writeKey>`
   and a JSON body. Retries network errors and 408/500/502/503/504 with exponential backoff
   (`retry: { limit: 10, initialDelay: 200, retryOnResponseStatuses: [...] }`).
 - `beaconAPI`: `navigator.sendBeacon(url + '?api_key=' + writeKey, JSON)`; survives page unloads,
@@ -109,7 +109,7 @@ await client.query({ datasetName: 'per-customer', indexBy: 'customer.id', timefr
 await client.run([queryA, 'saved-query-name']);                         // Promise.all
 ```
 
-Analyses `POST /3.0/projects/{id}/queries/{type}` with a JSON body that includes `analysis_type`
+Analyses `POST /1.0/projects/{id}/queries/{type}` with a JSON body that includes `analysis_type`
 and, when not given, `timezone` as the local UTC offset in seconds. Saved query and dataset
 results are `GET`s with `?api_key=`. The read key is used, or the master key when no read key is
 set.

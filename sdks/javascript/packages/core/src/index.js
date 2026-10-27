@@ -5,7 +5,7 @@ import { each, extend, serialize, deepExtend, mapKeysToUnderscore, base64Encode,
 
 export const DEFAULT_HOST = 'localhost:8080';
 export const DEFAULT_PROTOCOL = 'http';
-export const DEFAULT_VERSION = '3.0';
+export const DEFAULT_VERSION = '1.0';
 
 export const defaultResources = {
   base: '{protocol}://{host}',

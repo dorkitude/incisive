@@ -17,7 +17,7 @@ def test_from_environment(reset_module, monkeypatch, server):
     monkeypatch.setenv("INCISIVE_MASTER_KEY", "emk")
     monkeypatch.setenv("INCISIVE_BASE_URL", server.url)
     incisive.add_event("c", {"a": 1})
-    assert server.last.path == "/3.0/projects/envproj/events/c"
+    assert server.last.path == "/1.0/projects/envproj/events/c"
     assert server.last.headers["Authorization"] == "ewk"
     assert (incisive.project_id, incisive.read_key, incisive.master_key) == ("envproj", "erk", "emk")
 
@@ -30,7 +30,7 @@ def test_globals_win_over_environment(reset_module, monkeypatch, server):
     incisive.base_url = server.url
     server.respond(200, {"result": 7})
     assert incisive.count("c", timeframe="this_1_days") == 7
-    assert server.last.path == "/3.0/projects/globalproj/queries/count"
+    assert server.last.path == "/1.0/projects/globalproj/queries/count"
     assert server.last.headers["Authorization"] == "grk"
 
 
@@ -41,7 +41,7 @@ def test_targeted_shortcuts_forward_everything(reset_module, server, name):
     server.respond(200, {"result": 1})
     getattr(incisive, name)("c", "t", group_by="g", order_by={"property_name": "result"}, limit=3)
     q = server.last.query
-    assert server.last.path == "/3.0/projects/p/queries/" + name
+    assert server.last.path == "/1.0/projects/p/queries/" + name
     assert (q["target_property"], q["group_by"], q["limit"]) == ("t", "g", "3")
 
 
@@ -68,14 +68,14 @@ def test_other_shortcuts(reset_module, server):
     incisive.list_access_keys()
     paths = [(r.method, r.path) for r in server.requests]
     assert paths == [
-        ("GET", "/3.0/projects/p/queries/percentile"),
-        ("GET", "/3.0/projects/p/queries/extraction"),
-        ("GET", "/3.0/projects/p/queries/funnel"),
-        ("GET", "/3.0/projects/p/queries/multi_analysis"),
-        ("POST", "/3.0/projects/p/events"),
-        ("DELETE", "/3.0/projects/p/events/c"),
-        ("GET", "/3.0/projects/p/events"),
-        ("GET", "/3.0/projects/p/events/c"),
-        ("GET", "/3.0/projects/p/keys"),
+        ("GET", "/1.0/projects/p/queries/percentile"),
+        ("GET", "/1.0/projects/p/queries/extraction"),
+        ("GET", "/1.0/projects/p/queries/funnel"),
+        ("GET", "/1.0/projects/p/queries/multi_analysis"),
+        ("POST", "/1.0/projects/p/events"),
+        ("DELETE", "/1.0/projects/p/events/c"),
+        ("GET", "/1.0/projects/p/events"),
+        ("GET", "/1.0/projects/p/events/c"),
+        ("GET", "/1.0/projects/p/keys"),
     ]
     assert incisive.generate_image_beacon("c", {}).startswith(server.url)

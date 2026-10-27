@@ -10,7 +10,7 @@ class ConfigTest extends TestCase
     public function testFactoryStoresConfig(): void
     {
         $config = [
-            'projectId' => 'p', 'masterKey' => 'm', 'readKey' => 'r', 'writeKey' => 'w', 'version' => '3.0',
+            'projectId' => 'p', 'masterKey' => 'm', 'readKey' => 'r', 'writeKey' => 'w', 'version' => '1.0',
             'baseUrl' => 'http://h:1',
         ];
         $client = IncisiveClient::factory($config);
@@ -24,7 +24,7 @@ class ConfigTest extends TestCase
     public function testDefaults(): void
     {
         $client = IncisiveClient::factory(['version' => '', 'baseUrl' => '']);
-        $this->assertSame('3.0', $client->getVersion());
+        $this->assertSame('1.0', $client->getVersion());
         $this->assertSame('http://localhost:8080', $client->getBaseUrl());
         $this->assertNull($client->getProjectId());
     }
@@ -36,11 +36,11 @@ class ConfigTest extends TestCase
         $client->setReadKey('r');
         $client->setWriteKey('w');
         $client->setMasterKey('m');
-        $client->setVersion('3.0');
+        $client->setVersion('1.0');
         $client->setBaseUrl('http://x');
         $client->setOrganizationId('o');
         $client->setOrganizationKey('ok');
-        $this->assertSame(['p', 'r', 'w', 'm', '3.0', 'http://x', 'o', 'ok'], [
+        $this->assertSame(['p', 'r', 'w', 'm', '1.0', 'http://x', 'o', 'ok'], [
             $client->getProjectId(), $client->getReadKey(), $client->getWriteKey(), $client->getMasterKey(),
             $client->getVersion(), $client->getBaseUrl(), $client->getOrganizationId(), $client->getOrganizationKey(),
         ]);

@@ -52,7 +52,7 @@ async function visit({ url, referrer, ua, storage, navigate = [], html: custom, 
 }
 
 async function q(analysis, params) {
-  const u = new URL(`${base}/3.0/projects/${project}/queries/${analysis}`);
+  const u = new URL(`${base}/1.0/projects/${project}/queries/${analysis}`);
   for (const [k, v] of Object.entries(params)) u.searchParams.set(k, typeof v === "string" ? v : JSON.stringify(v));
   const r = await fetch(u, { headers: { authorization: readKey } });
   const j = await r.json();

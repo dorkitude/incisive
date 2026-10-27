@@ -29,24 +29,24 @@ beforeEach(() => {
 });
 
 describe('configuration', () => {
-  test('defaults to localhost:8080 over http and API version 3.0', () => {
+  test('defaults to localhost:8080 over http and API version 1.0', () => {
     const c = new IncisiveTracking({ projectId: 'P', writeKey: 'W' });
-    assert.equal(c.url('events'), 'http://localhost:8080/3.0/projects/P/events');
+    assert.equal(c.url('events'), 'http://localhost:8080/1.0/projects/P/events');
   });
 
   test('host + protocol form is supported, including a port', () => {
     const c = new IncisiveTracking({ projectId: 'P', writeKey: 'W', host: 'example.com:9000', protocol: 'https' });
-    assert.equal(c.url('events', 'x'), 'https://example.com:9000/3.0/projects/P/events/x');
+    assert.equal(c.url('events', 'x'), 'https://example.com:9000/1.0/projects/P/events/x');
   });
 
   test('host with a scheme sets the protocol', () => {
     const c = new IncisiveTracking({ projectId: 'P', host: 'https://example.com/' });
-    assert.equal(c.url('projectId'), 'https://example.com/3.0/projects/P');
+    assert.equal(c.url('projectId'), 'https://example.com/1.0/projects/P');
   });
 
   test('baseUrl with a path prefix and custom resources', () => {
     const c = new IncisiveTracking({ projectId: 'P', baseUrl: 'https://a.example/analytics/' });
-    assert.equal(c.url('queries', 'count'), 'https://a.example/analytics/3.0/projects/P/queries/count');
+    assert.equal(c.url('queries', 'count'), 'https://a.example/analytics/1.0/projects/P/queries/count');
     c.resources({ events: 'https://ingest.example/{projectId}/ev' });
     assert.equal(c.url('events'), 'https://ingest.example/P/ev');
     assert.equal(c.url('/custom', { a: 1 }), 'https://a.example/analytics/custom?a=1');
@@ -72,7 +72,7 @@ describe('recordEvent over fetch', () => {
     assert.deepEqual(cbArgs, [null, { created: true }]);
     const req = server.requests[0];
     assert.equal(req.method, 'POST');
-    assert.equal(req.path, '/3.0/projects/PROJECT/events/purchases');
+    assert.equal(req.path, '/1.0/projects/PROJECT/events/purchases');
     assert.equal(req.headers.authorization, 'WRITE_KEY');
     assert.equal(req.headers['content-type'], 'application/json');
     assert.deepEqual(Object.keys(req.headers).filter((h) => h.endsWith('-sdk')), []);
@@ -83,7 +83,7 @@ describe('recordEvent over fetch', () => {
   test('collection names are percent-encoded in the path', async () => {
     server.reply({ status: 201, body: { created: true } });
     await client().recordEvent('my coll/x?y', { a: 1 });
-    assert.equal(server.requests[0].rawPath, '/3.0/projects/PROJECT/events/my%20coll%2Fx%3Fy');
+    assert.equal(server.requests[0].rawPath, '/1.0/projects/PROJECT/events/my%20coll%2Fx%3Fy');
   });
 
   test('object form with collection/event/callback', async () => {
@@ -222,7 +222,7 @@ describe('recordEvents (batch)', () => {
     assert.equal(res.a.length, 2);
     const req = server.requests[0];
     assert.equal(req.method, 'POST');
-    assert.equal(req.path, '/3.0/projects/PROJECT/events');
+    assert.equal(req.path, '/1.0/projects/PROJECT/events');
     assert.equal(req.headers.authorization, 'WRITE_KEY');
     assert.deepEqual(req.body, { a: [{ tagged: true, n: 1 }, { tagged: true, n: 2 }], b: [{ n: 3 }] });
   });
@@ -324,7 +324,7 @@ describe('browser transports', () => {
     const c = client({ requestType: 'beaconAPI' });
     const res = await c.recordEvent('pageviews', { page: '/' });
     assert.deepEqual(res, { queued: true });
-    assert.equal(calls[0].url, `${server.url}/3.0/projects/PROJECT/events/pageviews?api_key=WRITE_KEY`);
+    assert.equal(calls[0].url, `${server.url}/1.0/projects/PROJECT/events/pageviews?api_key=WRITE_KEY`);
     assert.equal(calls[0].body, '{"page":"/"}');
     await new Promise((r) => setTimeout(r, 50));
     const req = server.requests[0];
@@ -339,7 +339,7 @@ describe('browser transports', () => {
     const calls = [];
     stubNavigator({ userAgent: 'test', sendBeacon: (url, body) => { calls.push({ url, body }); return true; } });
     await client({ requestType: 'beaconAPI' }).recordEvents({ a: [{ n: 1 }] });
-    assert.equal(calls[0].url, `${server.url}/3.0/projects/PROJECT/events?api_key=WRITE_KEY`);
+    assert.equal(calls[0].url, `${server.url}/1.0/projects/PROJECT/events?api_key=WRITE_KEY`);
     assert.deepEqual(JSON.parse(calls[0].body), { a: [{ n: 1 }] });
   });
 
@@ -387,7 +387,7 @@ describe('browser transports', () => {
     assert.deepEqual(res, { created: true });
     const req = server.requests[0];
     assert.equal(req.method, 'GET');
-    assert.equal(req.rawPath, '/3.0/projects/PROJECT/events/page%20views');
+    assert.equal(req.rawPath, '/1.0/projects/PROJECT/events/page%20views');
     assert.equal(req.query.api_key, 'WRITE_KEY');
     assert.equal(req.query.c, 'clv1');
     assert.match(req.query.modified, /^\d{13}$/);
@@ -441,7 +441,7 @@ describe('auto-tracking', () => {
       assert.equal(c.config.requestType, 'beaconAPI');
       await new Promise((r) => setTimeout(r, 10));
       assert.equal(beacons.length, 1);
-      assert.equal(beacons[0].url, `${server.url}/3.0/projects/PROJECT/events/pageviews?api_key=WRITE_KEY`);
+      assert.equal(beacons[0].url, `${server.url}/1.0/projects/PROJECT/events/pageviews?api_key=WRITE_KEY`);
       const event = JSON.parse(beacons[0].body);
       assert.equal(event.url.full, 'https://www.example.com/pricing');
       assert.equal(event.referrer.full, 'https://ref.example/');
@@ -474,7 +474,7 @@ describe('auto-tracking', () => {
       c.initAutoTracking({ catchError: () => {}, recordClicks: false, recordFormSubmits: false, recordScrollState: false, recordElementViews: false });
       assert.equal(c.config.requestType, 'fetch');
       await new Promise((r) => setTimeout(r, 50));
-      assert.equal(server.requests[0].path, '/3.0/projects/PROJECT/events/pageviews');
+      assert.equal(server.requests[0].path, '/1.0/projects/PROJECT/events/pageviews');
       assert.equal(server.requests[0].headers.authorization, 'WRITE_KEY');
     } finally {
       if (saved.window === undefined) delete globalThis.window; else globalThis.window = saved.window;

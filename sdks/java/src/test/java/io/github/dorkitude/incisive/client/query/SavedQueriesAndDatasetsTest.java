@@ -54,7 +54,7 @@ class SavedQueriesAndDatasetsTest {
         assertEquals("my-count", resp.get("query_name"));
         MockServer.Recorded r = server.last();
         assertEquals("PUT", r.method);
-        assertEquals("/3.0/projects/proj1/queries/saved/my-count", r.rawPath);
+        assertEquals("/1.0/projects/proj1/queries/saved/my-count", r.rawPath);
         assertEquals("MASTER", r.header("Authorization"));
         assertEquals("application/json", r.header("Content-Type"));
         assertEquals(json("{\"query\":{\"event_collection\":\"purchases\",\"timeframe\":\"this_7_days\",\"analysis_type\":\"count\"},"
@@ -76,7 +76,7 @@ class SavedQueriesAndDatasetsTest {
         server.respond(200, "{\"query_name\": \"q\", \"query\": {\"analysis_type\": \"count\"}}");
         assertEquals("q", saved.getDefinition("q").get("query_name"));
         assertEquals("GET", server.last().method);
-        assertEquals("/3.0/projects/proj1/queries/saved/q", server.last().rawPath);
+        assertEquals("/1.0/projects/proj1/queries/saved/q", server.last().rawPath);
         assertEquals("MASTER", server.last().header("Authorization"));
         assertNull(server.last().header("Content-Type"));
         assertEquals("", server.last().body);
@@ -85,12 +85,12 @@ class SavedQueriesAndDatasetsTest {
         List<Map<String, Object>> all = saved.getAllDefinitions();
         assertEquals(2, all.size());
         assertEquals("b", all.get(1).get("query_name"));
-        assertEquals("/3.0/projects/proj1/queries/saved", server.last().rawPath);
+        assertEquals("/1.0/projects/proj1/queries/saved", server.last().rawPath);
 
         server.respond(204, null);
         saved.deleteQuery("q");
         assertEquals("DELETE", server.last().method);
-        assertEquals("/3.0/projects/proj1/queries/saved/q", server.last().rawPath);
+        assertEquals("/1.0/projects/proj1/queries/saved/q", server.last().rawPath);
         assertEquals("MASTER", server.last().header("Authorization"));
     }
 
@@ -100,7 +100,7 @@ class SavedQueriesAndDatasetsTest {
                 + " \"result\": [{\"country\": \"US\", \"result\": 4}]}");
         QueryResult r = saved.getResult("q");
         assertEquals("GET", server.last().method);
-        assertEquals("/3.0/projects/proj1/queries/saved/q/result", server.last().rawPath);
+        assertEquals("/1.0/projects/proj1/queries/saved/q/result", server.last().rawPath);
         assertEquals("READ", server.last().header("Authorization"));
         assertEquals(4L, r.getGroupResults().get(new Group(Map.of("country", "US"))).longValue());
 
@@ -119,7 +119,7 @@ class SavedQueriesAndDatasetsTest {
         assertEquals("GET", reqs.get(0).method);
         MockServer.Recorded put = reqs.get(1);
         assertEquals("PUT", put.method);
-        assertEquals("/3.0/projects/proj1/queries/saved/q", put.rawPath);
+        assertEquals("/1.0/projects/proj1/queries/saved/q", put.rawPath);
         assertEquals("MASTER", put.header("Authorization"));
         assertEquals(json("{\"query_name\":\"q\",\"refresh_rate\":0,\"metadata\":{\"display_name\":\"New\",\"x\":1},"
                 + "\"query\":{\"analysis_type\":\"count\",\"event_collection\":\"c\",\"timeframe\":\"this_1_days\",\"max_age\":300}}"),
@@ -143,7 +143,7 @@ class SavedQueriesAndDatasetsTest {
         DatasetDefinition d = datasets.create("ds1", "DS", q, List.of("product.id"));
         MockServer.Recorded r = server.last();
         assertEquals("PUT", r.method);
-        assertEquals("/3.0/projects/proj1/datasets/ds1", r.rawPath);
+        assertEquals("/1.0/projects/proj1/datasets/ds1", r.rawPath);
         assertEquals("MASTER", r.header("Authorization"));
         assertEquals(json("{\"display_name\":\"DS\",\"index_by\":[\"product.id\"],\"query\":{\"analysis_type\":\"count\","
                 + "\"event_collection\":\"purchases\",\"timeframe\":\"this_500_days\",\"interval\":\"daily\","
@@ -160,7 +160,7 @@ class SavedQueriesAndDatasetsTest {
         server.respond(200, DEFINITION);
         DatasetDefinition d = datasets.getDefinition("ds1");
         assertEquals("GET", server.last().method);
-        assertEquals("/3.0/projects/proj1/datasets/ds1", server.last().rawPath);
+        assertEquals("/1.0/projects/proj1/datasets/ds1", server.last().rawPath);
         assertEquals("READ", server.last().header("Authorization"));
         assertEquals("DS", d.getDisplayName());
 
@@ -168,7 +168,7 @@ class SavedQueriesAndDatasetsTest {
         List<DatasetDefinition> list = datasets.getDefinitions(10, "ds0");
         assertEquals(1, list.size());
         assertEquals(d, list.get(0));
-        assertEquals("/3.0/projects/proj1/datasets", server.last().rawPath);
+        assertEquals("/1.0/projects/proj1/datasets", server.last().rawPath);
         assertEquals(Map.of("limit", "10", "after_name", "ds0"), server.last().query());
 
         server.respond(200, "{}");
@@ -188,7 +188,7 @@ class SavedQueriesAndDatasetsTest {
         List<IntervalResultValue> values = datasets.getResults(d, index, new RelativeTimeframe("this_3_days"));
         MockServer.Recorded r = server.last();
         assertEquals("GET", r.method);
-        assertEquals("/3.0/projects/proj1/datasets/ds1/results", r.rawPath);
+        assertEquals("/1.0/projects/proj1/datasets/ds1/results", r.rawPath);
         assertEquals("READ", r.header("Authorization"));
         Map<String, String> q = r.query();
         assertEquals(json("{\"product.id\":\"abc def\"}"), json(q.get("index_by")));
@@ -207,7 +207,7 @@ class SavedQueriesAndDatasetsTest {
         server.respond(204, null);
         assertTrue(datasets.delete("ds1"));
         assertEquals("DELETE", server.last().method);
-        assertEquals("/3.0/projects/proj1/datasets/ds1", server.last().rawPath);
+        assertEquals("/1.0/projects/proj1/datasets/ds1", server.last().rawPath);
         assertEquals("MASTER", server.last().header("Authorization"));
     }
 }

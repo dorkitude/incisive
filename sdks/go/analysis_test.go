@@ -30,7 +30,7 @@ func TestCountFullParams(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := m.last(t)
-	assertReq(t, r, "POST", "/3.0/projects/proj1/queries/count", "RKEY")
+	assertReq(t, r, "POST", "/1.0/projects/proj1/queries/count", "RKEY")
 	if got := r.Query["include_metadata"]; len(got) != 1 || got[0] != "true" {
 		t.Errorf("include_metadata = %v", got)
 	}
@@ -83,7 +83,7 @@ func TestAbsoluteTimeframeOffsetTimezoneAndComplexGroupBy(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := m.last(t)
-	assertReq(t, r, "POST", "/3.0/projects/proj1/queries/sum", "RKEY")
+	assertReq(t, r, "POST", "/1.0/projects/proj1/queries/sum", "RKEY")
 	if len(r.Query) != 0 {
 		t.Errorf("unexpected query %v", r.Query)
 	}
@@ -170,7 +170,7 @@ func TestEveryAnalysisRoute(t *testing.T) {
 				t.Fatal(err)
 			}
 			r := m.last(t)
-			assertReq(t, r, "POST", "/3.0/projects/proj1/queries/"+tc.name, "RKEY")
+			assertReq(t, r, "POST", "/1.0/projects/proj1/queries/"+tc.name, "RKEY")
 			assertJSON(t, r.Body, tc.body)
 			f, err := res.Float64()
 			if err != nil || f != 1.5 {

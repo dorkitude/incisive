@@ -27,7 +27,7 @@ namespace Incisive.Tests
             Assert.Equal("42", result);
             var r = Server.Last;
             Assert.Equal("GET", r.Method);
-            Assert.Equal("/3.0/projects/proj%201/queries/count", r.RawPath);
+            Assert.Equal("/1.0/projects/proj%201/queries/count", r.RawPath);
             Assert.Equal("MASTER", r.Header("Authorization"));
             Assert.Equal("", r.Body);
             var q = r.Query;
@@ -81,7 +81,7 @@ namespace Incisive.Tests
             }[analysis];
             Server.Reply(200, "{\"result\": 7}");
             Assert.Equal("7", await Client().QueryAsync(qt, "p", "x"));
-            Assert.Equal("/3.0/projects/proj%201/queries/" + analysis, Server.Last.RawPath);
+            Assert.Equal("/1.0/projects/proj%201/queries/" + analysis, Server.Last.RawPath);
         }
 
         [Fact]
@@ -90,7 +90,7 @@ namespace Incisive.Tests
             Server.Reply(200, "{\"result\": 99.5}");
             var res = await Client().QueryAsync(QueryType.Percentile(90), "p", "latency");
             Assert.Equal("99.5", res);
-            Assert.Equal("/3.0/projects/proj%201/queries/percentile", Server.Last.RawPath);
+            Assert.Equal("/1.0/projects/proj%201/queries/percentile", Server.Last.RawPath);
             Assert.Equal("90", Server.Last.Query["percentile"]);
             Assert.Equal("latency", Server.Last.Query["target_property"]);
         }
@@ -144,7 +144,7 @@ namespace Incisive.Tests
         {
             Server.Reply(200, "{\"result\":[{\"a\":1},{\"a\":2}]}");
             var rows = (await Client().QueryExtractResourceAsync("p", QueryRelativeTimeframe.ThisDay(), latest: 10)).ToList();
-            Assert.Equal("/3.0/projects/proj%201/queries/extraction", Server.Last.RawPath);
+            Assert.Equal("/1.0/projects/proj%201/queries/extraction", Server.Last.RawPath);
             Assert.Equal("10", Server.Last.Query["latest"]);
             Assert.False(Server.Last.Query.ContainsKey("email"));
             Assert.Equal(2, rows.Count);
@@ -175,7 +175,7 @@ namespace Incisive.Tests
             var res = await Client().QueryFunnelAsync(steps, timezone: "US/Pacific");
 
             var r = Server.Last;
-            Assert.Equal("/3.0/projects/proj%201/queries/funnel", r.RawPath);
+            Assert.Equal("/1.0/projects/proj%201/queries/funnel", r.RawPath);
             Assert.Equal("US/Pacific", r.Query["timezone"]);
             Assert.False(r.Query.ContainsKey("timeframe"));
             AssertJson("[{\"event_collection\":\"signup\",\"actor_property\":\"uid\",\"inverted\":false,\"optional\":false,\"timeframe\":\"this_7_days\",\"with_actors\":false}," +
@@ -201,7 +201,7 @@ namespace Incisive.Tests
         {
             Server.Reply(200, "{\"result\":{\"total\":3,\"revenue\":30.5,\"p95\":12}}");
             var res = await Client().QueryMultiAnalysisAsync("p", Analyses, QueryRelativeTimeframe.ThisMonth());
-            Assert.Equal("/3.0/projects/proj%201/queries/multi_analysis", Server.Last.RawPath);
+            Assert.Equal("/1.0/projects/proj%201/queries/multi_analysis", Server.Last.RawPath);
             AssertJson("{\"total\":{\"analysis_type\":\"count\"},\"revenue\":{\"analysis_type\":\"sum\",\"target_property\":\"price\"}," +
                        "\"p95\":{\"analysis_type\":\"percentile\",\"target_property\":\"price\",\"percentile\":95}}", Server.Last.QueryJson("analyses"));
             Assert.Equal("3", res["total"]);
@@ -234,9 +234,9 @@ namespace Incisive.Tests
         [Fact]
         public async Task AvailableQueriesAndRawQuery()
         {
-            Server.Reply(200, "{\"count_url\":\"/3.0/projects/p/queries/count\"}");
+            Server.Reply(200, "{\"count_url\":\"/1.0/projects/p/queries/count\"}");
             var avail = (await Client().GetQueriesAsync()).ToList();
-            Assert.Equal("/3.0/projects/proj%201/queries", Server.Last.RawPath);
+            Assert.Equal("/1.0/projects/proj%201/queries", Server.Last.RawPath);
             Assert.Equal("count_url", avail.Single().Key);
 
             Server.Reply(200, "{\"result\":5,\"extra\":true}");
@@ -255,14 +255,14 @@ namespace Incisive.Tests
             Server.Reply(200, "[{\"query_name\":\"q1\"}]");
             var list = await c.ListSavedQueriesAsync();
             Assert.Equal("GET", Server.Last.Method);
-            Assert.Equal("/3.0/projects/proj%201/queries/saved", Server.Last.RawPath);
+            Assert.Equal("/1.0/projects/proj%201/queries/saved", Server.Last.RawPath);
             Assert.Equal("MASTER", Server.Last.Header("Authorization"));
             Assert.Equal("q1", (string)list[0]["query_name"]);
 
             Server.Reply(201, "{\"query_name\":\"my q\"}");
             await c.CreateSavedQueryAsync("my q", new { refresh_rate = 0, query = new { analysis_type = "count", event_collection = "p", timeframe = "this_7_days" } });
             Assert.Equal("PUT", Server.Last.Method);
-            Assert.Equal("/3.0/projects/proj%201/queries/saved/my%20q", Server.Last.RawPath);
+            Assert.Equal("/1.0/projects/proj%201/queries/saved/my%20q", Server.Last.RawPath);
             Assert.StartsWith("application/json", Server.Last.Header("Content-Type"));
             Assert.True(JToken.DeepEquals(RecordedRequest.Parse("{\"refresh_rate\":0,\"query\":{\"analysis_type\":\"count\",\"event_collection\":\"p\",\"timeframe\":\"this_7_days\"}}"), Server.Last.BodyJson));
 
@@ -274,18 +274,18 @@ namespace Incisive.Tests
             Server.Reply(200, "{\"query_name\":\"q\",\"refresh_rate\":0}");
             var def = await c.GetSavedQueryAsync("q");
             Assert.Equal("q", (string)def["query_name"]);
-            Assert.Equal("/3.0/projects/proj%201/queries/saved/q", Server.Last.RawPath);
+            Assert.Equal("/1.0/projects/proj%201/queries/saved/q", Server.Last.RawPath);
 
             Server.Reply(200, "{\"result\":12}");
             var res = await Client(master: null).GetSavedQueryResultAsync("q");
-            Assert.Equal("/3.0/projects/proj%201/queries/saved/q/result", Server.Last.RawPath);
+            Assert.Equal("/1.0/projects/proj%201/queries/saved/q/result", Server.Last.RawPath);
             Assert.Equal("READ", Server.Last.Header("Authorization"));
             Assert.Equal(12, (int)res["result"]);
 
             Server.Reply(204, (string)null);
             await c.DeleteSavedQueryAsync("q");
             Assert.Equal("DELETE", Server.Last.Method);
-            Assert.Equal("/3.0/projects/proj%201/queries/saved/q", Server.Last.RawPath);
+            Assert.Equal("/1.0/projects/proj%201/queries/saved/q", Server.Last.RawPath);
 
             await Assert.ThrowsAsync<IncisiveException>(() => Client(master: null).DeleteSavedQueryAsync("q"));
         }
@@ -313,7 +313,7 @@ namespace Incisive.Tests
             var created = await Client().CreateDatasetAsync(ds);
             var r = Server.Last;
             Assert.Equal("PUT", r.Method);
-            Assert.Equal("/3.0/projects/proj%201/datasets/ds", r.RawPath);
+            Assert.Equal("/1.0/projects/proj%201/datasets/ds", r.RawPath);
             Assert.Equal("MASTER", r.Header("Authorization"));
             Assert.True(JToken.DeepEquals(RecordedRequest.Parse(
                 "{\"dataset_name\":\"ds\",\"display_name\":\"DS\",\"query\":{\"analysis_type\":\"count\",\"event_collection\":\"p\"," +
@@ -329,7 +329,7 @@ namespace Incisive.Tests
             var c = Client();
             Server.Reply(200, "{\"result\":[{\"value\":1}]}");
             var res = await c.QueryDatasetAsync("ds", "cust 1", "this_7_days");
-            Assert.Equal("/3.0/projects/proj%201/datasets/ds/results", Server.Last.RawPath);
+            Assert.Equal("/1.0/projects/proj%201/datasets/ds/results", Server.Last.RawPath);
             Assert.Equal("READ", Server.Last.Header("Authorization"));
             Assert.Equal("cust 1", Server.Last.Query["index_by"]);
             Assert.Equal("this_7_days", Server.Last.Query["timeframe"]);
@@ -340,7 +340,7 @@ namespace Incisive.Tests
 
             Server.Reply(200, "{\"datasets\":[{\"dataset_name\":\"a\"}],\"next_page_url\":\"/x\",\"count\":2}");
             var page = await c.ListDatasetDefinitionsAsync(1, "z&y");
-            Assert.Equal("/3.0/projects/proj%201/datasets", Server.Last.RawPath);
+            Assert.Equal("/1.0/projects/proj%201/datasets", Server.Last.RawPath);
             Assert.Equal("1", Server.Last.Query["limit"]);
             Assert.Equal("z&y", Server.Last.Query["after_name"]);
             Assert.Equal(2, page.Count);

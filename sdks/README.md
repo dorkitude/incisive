@@ -1,9 +1,9 @@
 # incisive SDKs
 
-Client libraries for the incisive analytics HTTP API (`/3.0/projects/{project_id}/...`). Each SDK
+Client libraries for the incisive analytics HTTP API (`/1.0/projects/{project_id}/...`). Each SDK
 keeps the method names, arguments and wire format that existing analytics code in that language
 already uses, so porting an app is usually a dependency rename plus a base URL. Every SDK
-defaults to `http://localhost:8080` and API version `3.0`.
+defaults to `http://localhost:8080` and API version `1.0`.
 
 | Directory | Package | Tracking | Analyses | Saved queries | Datasets | Discovery / deletes | Access keys | Scoped keys |
 |---|---|---|---|---|---|---|---|---|

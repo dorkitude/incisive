@@ -21,7 +21,7 @@ def test_add_event_wire(server, client):
     assert client.add_event("purchases", {"price": 10, "user": {"id": 1}}) is None
     req = server.last
     assert req.method == "POST"
-    assert req.path == "/3.0/projects/proj1/events/purchases"
+    assert req.path == "/1.0/projects/proj1/events/purchases"
     assert req.raw_query == ""
     assert_std_headers(req, "wk")
     assert req.json() == {"price": 10, "user": {"id": 1}}
@@ -37,7 +37,7 @@ def test_add_event_timestamp_merges_reserved_object(server, client):
 
 def test_collection_name_is_escaped(server, client):
     client.add_event("my coll/with?odd#chars", {"x": 1})
-    assert server.last.raw_path == "/3.0/projects/proj1/events/my%20coll%2Fwith%3Fodd%23chars"
+    assert server.last.raw_path == "/1.0/projects/proj1/events/my%20coll%2Fwith%3Fodd%23chars"
 
 
 def test_add_events_batch(server, client):
@@ -46,7 +46,7 @@ def test_add_events_batch(server, client):
     events = {"a": [{"n": 1}], "b": [{"n": 2}, {"n": 3}]}
     assert client.add_events(events) == reply
     req = server.last
-    assert (req.method, req.path) == ("POST", "/3.0/projects/proj1/events")
+    assert (req.method, req.path) == ("POST", "/1.0/projects/proj1/events")
     assert_std_headers(req, "wk")
     assert req.json() == events
 
@@ -67,7 +67,7 @@ def test_api_version_and_base_url_trailing_slash(server):
 def test_default_base_url():
     c = incisive.IncisiveClient("p")
     assert c.api.base_url == "http://localhost:8080"
-    assert c.api.api_version == "3.0"
+    assert c.api.api_version == "1.0"
 
 
 def test_timeouts_passed(monkeypatch, server):
@@ -90,7 +90,7 @@ def test_timeouts_passed(monkeypatch, server):
 def test_image_beacon(client):
     url = client.generate_image_beacon("my coll", {"a": 1})
     parts = urlsplit(url)
-    assert parts.path == "/3.0/projects/proj1/events/my%20coll"
+    assert parts.path == "/1.0/projects/proj1/events/my%20coll"
     qs = parse_qs(parts.query)
     assert qs["api_key"] == ["wk"]
     assert json.loads(base64.b64decode(qs["data"][0])) == {"a": 1}

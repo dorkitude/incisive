@@ -28,7 +28,7 @@ func TestBatchClientFlushAndClose(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := m.last(t)
-	assertReq(t, r, "POST", "/3.0/projects/proj1/events", "WKEY")
+	assertReq(t, r, "POST", "/1.0/projects/proj1/events", "WKEY")
 	assertJSON(t, r.Body, `{"a":[{"n":1},{"n":3}],"b":[{"n":2}]}`)
 	if b.Pending() != 0 {
 		t.Fatal("buffer not cleared")

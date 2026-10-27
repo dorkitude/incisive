@@ -32,7 +32,7 @@ const (
 	// DefaultBaseURL is used when Client.BaseURL is empty.
 	DefaultBaseURL = "http://localhost:8080"
 	// DefaultAPIVersion is used when Client.APIVersion is empty.
-	DefaultAPIVersion = "3.0"
+	DefaultAPIVersion = "1.0"
 )
 
 // Errors returned before any request is made when a required key is missing.

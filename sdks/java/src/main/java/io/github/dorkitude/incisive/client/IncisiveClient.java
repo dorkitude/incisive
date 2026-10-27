@@ -532,7 +532,7 @@ public class IncisiveClient {
             return this;
         }
 
-        /** API version path segment; defaults to "3.0". */
+        /** API version path segment; defaults to "1.0". */
         public Builder withApiVersion(String apiVersion) {
             this.apiVersion = apiVersion;
             return this;

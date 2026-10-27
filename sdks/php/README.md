@@ -23,7 +23,7 @@ $client = IncisiveClient::factory([
     'readKey'   => $readKey,
     'masterKey' => $masterKey,                // only for admin operations / scoped keys
     'baseUrl'   => 'https://analytics.example.com', // default http://localhost:8080
-    'version'   => '3.0',                     // API version path segment (default)
+    'version'   => '1.0',                     // API version path segment (default)
 ]);
 
 // or from INCISIVE_PROJECT_ID, INCISIVE_WRITE_KEY, INCISIVE_READ_KEY,
@@ -81,7 +81,7 @@ $client->extraction('purchases', ['timeframe' => 'this_day', 'latest' => 100, 'p
 
 Available: `count`, `countUnique`, `minimum`, `maximum`, `average`, `sum`,
 `median`, `percentile`, `selectUnique`, `multiAnalysis`, `funnel`,
-`extraction`. Each sends a JSON `POST` to `/3.0/projects/{id}/queries/<analysis>`
+`extraction`. Each sends a JSON `POST` to `/1.0/projects/{id}/queries/<analysis>`
 containing only the parameters that analysis accepts (`event_collection`,
 `target_property`, `filters`, `timeframe`, `interval`, `timezone`, `group_by`,
 `include_metadata`, plus `percentile`, `analyses`, `steps`, `email`, `latest`,
@@ -127,7 +127,7 @@ Create/update send `{"query": {...}}` and normalise the name with
 ## Projects
 
 `getResources()` (host root `/`), `getProjects()`, `getProject()`, and
-`createProject([...])` (`POST /3.0/organizations/{organizationId}/projects`
+`createProject([...])` (`POST /1.0/organizations/{organizationId}/projects`
 with the organization key).
 
 ## Scoped keys

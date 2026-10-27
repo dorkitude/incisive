@@ -20,7 +20,7 @@ func TestAddEventWireFormat(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := m.last(t)
-	assertReq(t, r, "POST", "/3.0/projects/proj1/events/my%20purchases%2Feu%3Fx%23y", "WKEY")
+	assertReq(t, r, "POST", "/1.0/projects/proj1/events/my%20purchases%2Feu%3Fx%23y", "WKEY")
 	assertJSON(t, r.Body, `{"price":7.13,"keen":{"timestamp":"2026-01-02T02:04:05.006Z"}}`)
 }
 
@@ -39,7 +39,7 @@ func TestAddEventsReturnsPerEventResults(t *testing.T) {
 		t.Fatalf("unexpected result %+v", res)
 	}
 	r := m.last(t)
-	assertReq(t, r, "POST", "/3.0/projects/proj1/events", "WKEY")
+	assertReq(t, r, "POST", "/1.0/projects/proj1/events", "WKEY")
 	assertJSON(t, r.Body, `{"a":[{"n":1}],"b":[{"n":2},{"n":3}]}`)
 
 	// Upstream-compatible signature: only transport errors surface.
@@ -174,7 +174,7 @@ func TestNewClientFromEnv(t *testing.T) {
 	if c.ProjectID != "p" || c.WriteKey != "w" || c.ReadKey != "r" || c.MasterKey != "m" || c.BaseURL != "http://example.test" {
 		t.Fatalf("bad client %+v", c)
 	}
-	if got := (&Client{ProjectID: "p"}).projectURL("events"); got != "http://localhost:8080/3.0/projects/p/events" {
+	if got := (&Client{ProjectID: "p"}).projectURL("events"); got != "http://localhost:8080/1.0/projects/p/events" {
 		t.Fatalf("default url %s", got)
 	}
 }

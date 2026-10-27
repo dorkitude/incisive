@@ -19,7 +19,7 @@ class ModuleTest < Minitest::Test
   def test_defaults
     c = Incisive::Client.new({})
     assert_equal "http://localhost:8080", c.api_url
-    assert_equal "3.0", c.api_version
+    assert_equal "1.0", c.api_version
   end
 
   def test_from_env_and_module_delegation
@@ -36,7 +36,7 @@ class ModuleTest < Minitest::Test
     @server.respond(201, { "created" => true })
     Incisive.publish("c", { a: 1 })
     req = @server.last_request
-    assert_equal "/3.0/projects/envproj/events/c", req.path
+    assert_equal "/1.0/projects/envproj/events/c", req.path
     assert_equal "w", req.headers["authorization"]
 
     @server.respond(200, { "result" => 5 })

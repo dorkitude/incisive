@@ -22,7 +22,7 @@
  */
 (function (w, d) {
   "use strict";
-  var VERSION = "1.1.0";
+  var VERSION = "1.2.0";
   var SESSION_TIMEOUT = 30 * 60 * 1000;
   var AUTO = ["pageviews", "clicks", "forms", "engagement", "views", "errors"];
   var AUTO_DEFAULT = { pageviews: true, clicks: true, forms: true, engagement: true, views: true, errors: false };
@@ -180,7 +180,7 @@
       var extra = resolve(globals[i], { collection: collection, event: ev });
       if (extra && typeof extra === "object") merge(ev, extra);
     }
-    var url = cfg.host + "/3.0/projects/" + encodeURIComponent(cfg.project) + "/events/" + encodeURIComponent(collection) + "?api_key=" + encodeURIComponent(cfg.key);
+    var url = cfg.host + "/1.0/projects/" + encodeURIComponent(cfg.project) + "/events/" + encodeURIComponent(collection) + "?api_key=" + encodeURIComponent(cfg.key);
     var body = JSON.stringify(ev);
     try {
       if (navigator.sendBeacon && navigator.sendBeacon(url, new Blob([body], { type: "text/plain" }))) return;

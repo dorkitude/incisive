@@ -862,7 +862,7 @@ pub async fn install_page(State(st): State<St>, u: WebUser, Path(pid): Path<Stri
     let public = st.cfg.server.public_url.trim_end_matches('/').to_string();
     let tracker = if st.cfg.server.tracker_url.is_empty() { format!("{public}/js/incisive.js") } else { st.cfg.server.tracker_url.clone() };
     let keys = write_keys(&st, &pid);
-    let api = format!("{public}/3.0/projects/{}", p.id);
+    let api = format!("{public}/1.0/projects/{}", p.id);
     let body = html! {
         (page_head("Install", html! { "Start sending events: paste the tracker into your site, drop in a pixel, or call the API from your server." }, html! {}))
         @if keys.is_empty() {
@@ -1031,7 +1031,7 @@ pub async fn settings_page(State(st): State<St>, u: WebUser, Path(pid): Path<Str
             div.card-hd { h2 { "Project" } }
             div.facts {
                 (fact("Project ID", &p.id))
-                (fact("API base", &format!("{public}/3.0/projects/{}", p.id)))
+                (fact("API base", &format!("{public}/1.0/projects/{}", p.id)))
             }
         }
         div.card {

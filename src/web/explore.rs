@@ -534,9 +534,9 @@ pub async fn builder(State(st): State<St>, u: WebUser, Path(pid): Path<String>, 
                             h2 { "API call" }
                             div.tabs { button.on type="button" data-tab="body" { "JSON" } button type="button" data-tab="curl" { "curl" } }
                         }
-                        div data-panel="body" { (snippet(&format!("POST /3.0/projects/{pid}/queries/{analysis}"), "q-body", &body_s)) }
+                        div data-panel="body" { (snippet(&format!("POST /1.0/projects/{pid}/queries/{analysis}"), "q-body", &body_s)) }
                         div data-panel="curl" hidden {
-                            (snippet("Use a key with the queries permission", "q-curl", &format!("curl -X POST {public}/3.0/projects/{pid}/queries/{analysis} \\\n  -H \"Authorization: $READ_KEY\" -H 'Content-Type: application/json' \\\n  -d '{}'", serde_json::to_string(&body_json_compact(&m, &tz)).unwrap_or_default())))
+                            (snippet("Use a key with the queries permission", "q-curl", &format!("curl -X POST {public}/1.0/projects/{pid}/queries/{analysis} \\\n  -H \"Authorization: $READ_KEY\" -H 'Content-Type: application/json' \\\n  -d '{}'", serde_json::to_string(&body_json_compact(&m, &tz)).unwrap_or_default())))
                         }
                         form.row method="post" action=(format!("/app/p/{pid}/explore/save")) style="margin-top:4px" {
                             input type="hidden" name="csrf" value=(u.csrf);

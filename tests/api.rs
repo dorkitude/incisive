@@ -74,7 +74,7 @@ impl Env {
     }
 
     fn url(&self, rest: &str) -> String {
-        format!("/3.0/projects/{}{rest}", self.pid)
+        format!("/1.0/projects/{}{rest}", self.pid)
     }
 
     async fn count(&self, coll: &str) -> Value {
@@ -164,9 +164,9 @@ async fn permissions_and_isolation() {
     // Another project's key does not work here, and this project's key does not work there.
     let (p2, k2) = e.st.meta.create_project(None, "other").unwrap();
     assert_eq!(e.call("POST", &e.url("/events/x"), Some(&k2[2].1), Some(json!({})), &[]).await.status, 401);
-    let r = e.call("GET", &format!("/3.0/projects/{}/queries/count?event_collection=x", p2.id), Some(&e.read), None, &[]).await;
+    let r = e.call("GET", &format!("/1.0/projects/{}/queries/count?event_collection=x", p2.id), Some(&e.read), None, &[]).await;
     assert_eq!(r.status, 401);
-    let r = e.call("GET", &format!("/3.0/projects/{}/queries/count?event_collection=x", p2.id), Some(&k2[1].1), None, &[]).await;
+    let r = e.call("GET", &format!("/1.0/projects/{}/queries/count?event_collection=x", p2.id), Some(&k2[1].1), None, &[]).await;
     assert_eq!(r.json()["result"], json!(0), "projects do not see each other's events");
 }
 

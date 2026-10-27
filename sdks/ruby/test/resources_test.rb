@@ -1,7 +1,7 @@
 require "test_helper"
 
 class AccessKeysTest < MockTest
-  BASE = "/3.0/projects/#{PROJECT}/keys"
+  BASE = "/1.0/projects/#{PROJECT}/keys"
 
   def test_all_get_create_update
     @server.respond(200, [{ "key" => "k1" }])
@@ -48,7 +48,7 @@ class AccessKeysTest < MockTest
 end
 
 class SavedQueriesTest < MockTest
-  BASE = "/3.0/projects/#{PROJECT}/queries/saved"
+  BASE = "/1.0/projects/#{PROJECT}/queries/saved"
 
   def test_all_and_get
     @server.respond(200, [{ "query_name" => "q" }])
@@ -108,7 +108,7 @@ class SavedQueriesTest < MockTest
 end
 
 class CachedDatasetsTest < MockTest
-  BASE = "/3.0/projects/#{PROJECT}/datasets"
+  BASE = "/1.0/projects/#{PROJECT}/datasets"
 
   def test_list
     @server.respond(200, { "datasets" => [], "count" => 0 })

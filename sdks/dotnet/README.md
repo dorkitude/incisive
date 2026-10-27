@@ -16,7 +16,7 @@ var settings = new ProjectSettingsProvider(
     masterKey: "MASTER_KEY",   // deletes, saved queries, dataset admin
     writeKey:  "WRITE_KEY",    // recording events
     readKey:   "READ_KEY",     // queries, schemas
-    serverUrl: "http://localhost:8080"); // default; the API version (3.0) is appended
+    serverUrl: "http://localhost:8080"); // default; the API version (1.0) is appended
 
 var client = new IncisiveClient(settings);
 ```
@@ -26,7 +26,7 @@ Or from the environment: `new ProjectSettingsProviderEnv()` reads `INCISIVE_PROJ
 optionally `INCISIVE_API_VERSION`. `ProjectSettingsProviderFile(path)` reads a JSON file that uses
 those names as keys.
 
-Requests go to `{serverUrl}/3.0/projects/{projectId}/...` with the key in the `Authorization`
+Requests go to `{serverUrl}/1.0/projects/{projectId}/...` with the key in the `Authorization`
 header. Pass an `HttpMessageHandler` to the constructor for proxies, logging or tests.
 
 ## Record events

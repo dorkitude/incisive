@@ -213,7 +213,7 @@ pub fn iso(secs: i64) -> String {
 // ---- router ----
 
 pub fn router(st: St) -> Router {
-    let p = "/3.0/projects/{pid}";
+    let p = "/1.0/projects/{pid}";
     let api = Router::new()
         .route(p, get(project_info))
         .route(&format!("{p}/events"), get(schema_all).post(write_batch))
@@ -270,7 +270,7 @@ async fn not_supported() -> ApiError {
 async fn project_info(State(st): State<St>, Path(pid): Path<String>, Query(params): Query<HashMap<String, String>>, c: Client) -> ApiResult<Json<Value>> {
     authorize(&st, &pid, &c.headers, &params, Op::Schema)?;
     let p = st.meta.project(&pid)?.ok_or_else(|| err(StatusCode::NOT_FOUND, "ResourceNotFoundError", "project not found"))?;
-    let base = format!("{}/3.0/projects/{}", st.cfg.server.public_url.trim_end_matches('/'), p.id);
+    let base = format!("{}/1.0/projects/{}", st.cfg.server.public_url.trim_end_matches('/'), p.id);
     Ok(Json(json!({"id": p.id, "name": p.name, "events_url": format!("{base}/events"), "queries_url": format!("{base}/queries")})))
 }
 
@@ -456,7 +456,7 @@ async fn get_collection(State(st): State<St>, Path((pid, coll)): Path<(String, S
 
 async fn schema_all(State(st): State<St>, Path(pid): Path<String>, Query(params): Query<HashMap<String, String>>, c: Client) -> ApiResult<Json<Value>> {
     authorize(&st, &pid, &c.headers, &params, Op::Schema)?;
-    let base = format!("/3.0/projects/{pid}/events");
+    let base = format!("/1.0/projects/{pid}/events");
     let out: Vec<Value> = st
         .engine
         .schema(&pid)
@@ -482,7 +482,7 @@ async fn property_info(State(st): State<St>, Path((pid, coll, prop)): Path<(Stri
     authorize(&st, &pid, &c.headers, &params, Op::Schema)?;
     let s = st.engine.schema(&pid).await?;
     let t = s.get(&coll).and_then(|p| p.get(&prop)).ok_or_else(|| err(StatusCode::NOT_FOUND, "ResourceNotFoundError", format!("property {prop:?} not found in {coll:?}")))?;
-    Ok(Json(json!({"property_name": prop, "type": t, "url": format!("/3.0/projects/{pid}/events/{}/properties/{}", urlencode(&coll), urlencode(&prop))})))
+    Ok(Json(json!({"property_name": prop, "type": t, "url": format!("/1.0/projects/{pid}/events/{}/properties/{}", urlencode(&coll), urlencode(&prop))})))
 }
 
 // ---- deletes ----

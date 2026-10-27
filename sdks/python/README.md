@@ -1,6 +1,6 @@
 # incisive (Python)
 
-Python client for the incisive analytics server (`/3.0/projects/{project_id}/...` HTTP API).
+Python client for the incisive analytics server (`/1.0/projects/{project_id}/...` HTTP API).
 It uses `requests` and covers event recording, analyses, saved queries, cached datasets,
 schema discovery, deletes, access keys and scoped keys.
 
@@ -21,7 +21,7 @@ client = IncisiveClient(
     project_id="my-project",
     write_key="...", read_key="...", master_key="...",
     base_url="http://localhost:8080",   # default
-    api_version="3.0",                  # default
+    api_version="1.0",                  # default
     get_timeout=305, post_timeout=305,  # seconds
 )
 ```

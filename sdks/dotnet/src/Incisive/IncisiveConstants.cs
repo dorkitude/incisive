@@ -7,7 +7,7 @@ namespace Incisive
         public const string DefaultBaseUrl = "http://localhost:8080";
 
         /// <summary>Default HTTP API version path segment.</summary>
-        public const string ApiVersion = "3.0";
+        public const string ApiVersion = "1.0";
 
         /// <summary>SDK version, used in the User-Agent header.</summary>
         public const string SdkVersion = "0.1.0";

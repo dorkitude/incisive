@@ -6,16 +6,15 @@ durably in an S3-compatible bucket (Cloudflare R2 in production), and answers an
 columnar segments cached on local NVMe. It ships with a web app: sign-in with emailed 6-digit codes, API key management,
 a tracking pixel generator, and a web analytics dashboard built on a standard pageview schema.
 
-The HTTP API follows the widely used `/3.0/projects/{project_id}/...` event-analytics contract, so
-existing client libraries for tracking, analysis and visualization work by changing only the host
-and the credentials.
+The HTTP API lives under `/1.0/projects/{project_id}/...`. Client libraries for Python, Ruby,
+JavaScript, Go, PHP, Java and .NET are in [`sdks/`](sdks/).
 
 ## Architecture
 
 ```mermaid
 flowchart TB
     clients(["Clients: browser tracker, pixels, SDKs, curl"])
-    clients --> api["HTTP API · /3.0/projects/{id}/…"]
+    clients --> api["HTTP API · /1.0/projects/{id}/…"]
 
     api -- "events" --> commit["Group commit<br/>batches requests for a few ms"]
     api -- "queries" --> query["Query engine<br/>filters, groups, intervals, funnels"]
@@ -97,7 +96,7 @@ share port by host name.
 
 ## API
 
-All routes are under `/3.0/projects/{project_id}`. Send the key in the `Authorization` header (or
+All routes are under `/1.0/projects/{project_id}`. Send the key in the `Authorization` header (or
 as `api_key`).
 
 | Route | |
@@ -204,6 +203,6 @@ INCISIVE_SMOKE_CONFIG=deploy/incisive.dev.toml cargo test --test fixture -- --ig
 - `tests/js/tracker_e2e.cjs`: runs the served tracker in jsdom through several visits against a
   running server and checks the stored sessions, pageviews, clicks, forms, engagement, `trackAll` properties and
   derived properties.
-- `tests/compat/run.sh`: runs the unmodified, pinned upstream JavaScript tracking, analysis and
-  visualization packages against a running server (Docker; it fronts the server with TLS).
+- `sdks/test-all.sh`: runs every SDK's test suite (unit tests, plus integration tests against a
+  running server when `INCISIVE_BASE_URL` and the key variables are set).
 - `scripts/seed_demo.py` sends 30 days of synthetic traffic, for trying the dashboard.

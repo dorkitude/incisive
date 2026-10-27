@@ -76,7 +76,7 @@ for _ in range(n_sessions):
 
 
 def post(chunk):
-    req = urllib.request.Request(f"{base}/3.0/projects/{project}/events", data=json.dumps(chunk).encode(), headers={"Authorization": key, "Content-Type": "application/json"})
+    req = urllib.request.Request(f"{base}/1.0/projects/{project}/events", data=json.dumps(chunk).encode(), headers={"Authorization": key, "Content-Type": "application/json"})
     with urllib.request.urlopen(req) as r:
         res = json.load(r)
     bad = [e for evs in res.values() for e in evs if not e["success"]]

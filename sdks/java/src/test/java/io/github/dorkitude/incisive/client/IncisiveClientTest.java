@@ -72,7 +72,7 @@ class IncisiveClientTest {
 
         MockServer.Recorded r = server.last();
         assertEquals("POST", r.method);
-        assertEquals("/3.0/projects/proj1/events/purchases", r.rawPath);
+        assertEquals("/1.0/projects/proj1/events/purchases", r.rawPath);
         assertNull(r.rawQuery);
         assertEquals("WRITE", r.header("Authorization"));
         assertEquals("application/json", r.header("Content-Type"));
@@ -109,7 +109,7 @@ class IncisiveClientTest {
     @Test
     void collectionNameIsEscapedAsOnePathSegment() {
         client.addEvent("my events/ünï?#%", event("a", 1));
-        assertEquals("/3.0/projects/proj1/events/my%20events%2F%C3%BCn%C3%AF%3F%23%25", server.last().rawPath);
+        assertEquals("/1.0/projects/proj1/events/my%20events%2F%C3%BCn%C3%AF%3F%23%25", server.last().rawPath);
         assertNull(server.last().rawQuery);
     }
 
@@ -164,7 +164,7 @@ class IncisiveClientTest {
         RecordingCallback cb = new RecordingCallback();
         client.addEventAsync(null, "async", event("a", 1), null, cb);
         assertEquals(1, cb.successes);
-        assertEquals("/3.0/projects/proj1/events/async", server.last().rawPath);
+        assertEquals("/1.0/projects/proj1/events/async", server.last().rawPath);
     }
 
     @Test
@@ -182,7 +182,7 @@ class IncisiveClientTest {
 
         MockServer.Recorded r = server.last();
         assertEquals("POST", r.method);
-        assertEquals("/3.0/projects/proj1/events", r.rawPath);
+        assertEquals("/1.0/projects/proj1/events", r.rawPath);
         assertEquals("WRITE", r.header("Authorization"));
         JsonNode body = r.json();
         assertEquals(2, body.get("clicks").size());
@@ -248,7 +248,7 @@ class IncisiveClientTest {
         assertEquals("envproj", c.getDefaultProject().getProjectId());
         assertEquals(server.baseUrl(), c.getBaseUrl());
         c.addEvent("c", event("a", 1));
-        assertEquals("/3.0/projects/envproj/events/c", server.last().rawPath);
+        assertEquals("/1.0/projects/envproj/events/c", server.last().rawPath);
         assertEquals("ENVWRITE", server.last().header("Authorization"));
     }
 
@@ -256,7 +256,7 @@ class IncisiveClientTest {
     void defaults() {
         IncisiveClient c = new JavaIncisiveClientBuilder().withEnvironment(new Environment(Collections.emptyMap())).build();
         assertEquals("http://localhost:8080", c.getBaseUrl());
-        assertEquals("3.0", c.getApiVersion());
+        assertEquals("1.0", c.getApiVersion());
         assertNull(c.getDefaultProject());
         assertTrue(c.isActive());
         assertInstanceOf(RamEventStore.class, c.getEventStore());

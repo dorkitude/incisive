@@ -14,7 +14,7 @@ module Incisive
     include MaintenanceMethods
 
     DEFAULT_API_URL = "http://localhost:8080".freeze
-    DEFAULT_API_VERSION = "3.0".freeze
+    DEFAULT_API_VERSION = "1.0".freeze
 
     attr_accessor :project_id, :write_key, :read_key, :master_key, :api_url,
                   :api_version, :proxy_url, :proxy_type, :read_timeout,
@@ -124,7 +124,7 @@ module Incisive
       raise ConfigurationError, "Read Key must be set for this operation" unless read_key
     end
 
-    # Base path for this project, e.g. "/3.0/projects/abc".
+    # Base path for this project, e.g. "/1.0/projects/abc".
     def project_path
       "/#{api_version}/projects/#{project_id}"
     end

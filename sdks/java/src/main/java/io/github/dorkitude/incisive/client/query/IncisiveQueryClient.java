@@ -371,7 +371,7 @@ public class IncisiveQueryClient {
 
     // ----- builder --------------------------------------------------------------------------
 
-    /** Builder. Base URL defaults to INCISIVE_BASE_URL, else http://localhost:8080; API version to "3.0". */
+    /** Builder. Base URL defaults to INCISIVE_BASE_URL, else http://localhost:8080; API version to "1.0". */
     public static class Builder {
         private HttpHandler httpHandler;
         private IncisiveJsonHandler jsonHandler;

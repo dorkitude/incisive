@@ -10,7 +10,7 @@ namespace Incisive
     {
         /// <summary>
         /// Absolute API root including the version segment and a trailing slash,
-        /// e.g. <c>http://localhost:8080/3.0/</c>. Resource paths are resolved against it.
+        /// e.g. <c>http://localhost:8080/1.0/</c>. Resource paths are resolved against it.
         /// </summary>
         string ServerUrl { get; }
         string ProjectId { get; }
@@ -37,9 +37,9 @@ namespace Incisive
         /// <param name="readKey">Read key, needed for queries and schema discovery.</param>
         /// <param name="serverUrl">
         /// Server address, default <c>http://localhost:8080</c>. If it already ends with the
-        /// API version segment (e.g. <c>.../3.0/</c>) it is used as-is.
+        /// API version segment (e.g. <c>.../1.0/</c>) it is used as-is.
         /// </param>
-        /// <param name="apiVersion">API version path segment, default <c>3.0</c>.</param>
+        /// <param name="apiVersion">API version path segment, default <c>1.0</c>.</param>
         public ProjectSettingsProvider(
             string projectId,
             string masterKey = null,

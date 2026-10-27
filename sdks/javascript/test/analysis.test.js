@@ -28,7 +28,7 @@ describe('standard analyses', () => {
     });
     const req = server.requests[0];
     assert.equal(req.method, 'POST');
-    assert.equal(req.path, '/3.0/projects/PROJECT/queries/count');
+    assert.equal(req.path, '/1.0/projects/PROJECT/queries/count');
     assert.equal(req.headers.authorization, 'READ_KEY');
     assert.equal(req.headers['content-type'], 'application/json');
     assert.equal(req.rawQuery, '');
@@ -52,7 +52,7 @@ describe('standard analyses', () => {
       analysisType: 'sum', eventCollection: 'purchases', targetProperty: 'price', timeframe: 'this_1_days',
     });
     const body = server.requests[0].body;
-    assert.equal(server.requests[0].path, '/3.0/projects/PROJECT/queries/sum');
+    assert.equal(server.requests[0].path, '/1.0/projects/PROJECT/queries/sum');
     assert.equal(body.target_property, 'price');
     assert.equal(body.timezone, new Date().getTimezoneOffset() * -60 || 0);
     assert.equal(typeof body.timezone, 'number');
@@ -65,7 +65,7 @@ describe('standard analyses', () => {
     server.setFallback({ status: 200, body: { result: 0 } });
     const c = client();
     for (const type of types) await c.query(type, { event_collection: 'e', timezone: 'UTC' });
-    assert.deepEqual(server.requests.map((r) => r.path), types.map((t) => `/3.0/projects/PROJECT/queries/${t}`));
+    assert.deepEqual(server.requests.map((r) => r.path), types.map((t) => `/1.0/projects/PROJECT/queries/${t}`));
     assert.deepEqual(server.requests.map((r) => r.body.analysis_type), types);
   });
 
@@ -195,7 +195,7 @@ describe('saved queries and cached datasets', () => {
     const res = await client().query({ savedQueryName: 'daily' });
     const req = server.requests[0];
     assert.equal(req.method, 'GET');
-    assert.equal(req.path, '/3.0/projects/PROJECT/queries/saved/daily/result');
+    assert.equal(req.path, '/1.0/projects/PROJECT/queries/saved/daily/result');
     assert.equal(req.query.api_key, 'READ_KEY');
     assert.equal(req.headers.authorization, 'READ_KEY');
     assert.equal(res.result, 9);
@@ -205,8 +205,8 @@ describe('saved queries and cached datasets', () => {
     server.setFallback({ status: 200, body: { result: 1 } });
     await client().query('saved', 'daily');
     await client().query('saved', 'daily/result');
-    assert.equal(server.requests[0].path, '/3.0/projects/PROJECT/queries/saved/daily/result');
-    assert.equal(server.requests[1].path, '/3.0/projects/PROJECT/queries/saved/daily/result');
+    assert.equal(server.requests[0].path, '/1.0/projects/PROJECT/queries/saved/daily/result');
+    assert.equal(server.requests[1].path, '/1.0/projects/PROJECT/queries/saved/daily/result');
   });
 
   test('run() accepts names, Query objects and arrays', async () => {
@@ -217,7 +217,7 @@ describe('saved queries and cached datasets', () => {
     assert.equal(a.result, 2);
     assert.equal(b.result, 2);
     const paths = server.requests.map((r) => r.path).sort();
-    assert.deepEqual(paths, ['/3.0/projects/PROJECT/queries/count', '/3.0/projects/PROJECT/queries/saved/saved-one/result']);
+    assert.deepEqual(paths, ['/1.0/projects/PROJECT/queries/count', '/1.0/projects/PROJECT/queries/saved/saved-one/result']);
     const countReq = server.requests.find((r) => r.method === 'POST');
     assert.deepEqual(countReq.body.filters, [{ property_name: 'a', operator: 'eq', property_value: 1 }]);
   });
@@ -227,7 +227,7 @@ describe('saved queries and cached datasets', () => {
     await client().query({ datasetName: 'dash', indexBy: 'customer.id', timeframe: { start: '2026-01-01T00:00:00Z', end: '2026-01-02T00:00:00Z' } });
     const req = server.requests[0];
     assert.equal(req.method, 'GET');
-    assert.equal(req.path, '/3.0/projects/PROJECT/datasets/dash/results');
+    assert.equal(req.path, '/1.0/projects/PROJECT/datasets/dash/results');
     assert.equal(req.query.api_key, 'READ_KEY');
     assert.equal(req.query.index_by, 'customer.id');
     assert.equal(req.query.dataset_name, 'dash');
@@ -237,7 +237,7 @@ describe('saved queries and cached datasets', () => {
   test("legacy query('dataset', {name}) form", async () => {
     server.reply({ status: 200, body: { result: [] } });
     await client().query('dataset', { name: 'dash', indexBy: 'x', timeframe: 'this_3_days' });
-    assert.equal(server.requests[0].path, '/3.0/projects/PROJECT/datasets/dash/results');
+    assert.equal(server.requests[0].path, '/1.0/projects/PROJECT/datasets/dash/results');
     assert.equal(server.requests[0].query.timeframe, 'this_3_days');
   });
 });
@@ -248,7 +248,7 @@ describe('raw requests for management endpoints', () => {
     const c = client({ masterKey: 'MASTER' });
     const res = await c.get({ url: c.url('queries', 'saved'), api_key: c.masterKey() });
     const req = server.requests[0];
-    assert.equal(req.path, '/3.0/projects/PROJECT/queries/saved');
+    assert.equal(req.path, '/1.0/projects/PROJECT/queries/saved');
     assert.equal(req.rawQuery, 'api_key=MASTER');
     assert.equal(req.headers.authorization, 'MASTER');
     assert.deepEqual(res, [{ query_name: 'a' }]);
@@ -264,7 +264,7 @@ describe('raw requests for management endpoints', () => {
     });
     const req = server.requests[0];
     assert.equal(req.method, 'PUT');
-    assert.equal(req.path, '/3.0/projects/PROJECT/queries/saved/daily');
+    assert.equal(req.path, '/1.0/projects/PROJECT/queries/saved/daily');
     assert.deepEqual(req.body, { refresh_rate: 0, query: { analysis_type: 'count', event_collection: 'e', timeframe: 'this_14_days' } });
   });
 
@@ -281,7 +281,7 @@ describe('raw requests for management endpoints', () => {
     assert.deepEqual(res, {});
     const req = server.requests[0];
     assert.equal(req.method, 'DELETE');
-    assert.equal(req.path, '/3.0/projects/PROJECT/events/purchases');
+    assert.equal(req.path, '/1.0/projects/PROJECT/events/purchases');
     assert.deepEqual(JSON.parse(req.query.filters), [{ property_name: 'item.id', operator: 'eq', property_value: 7 }]);
     assert.equal(req.query.timeframe, '"this_7_days"');
     assert.equal(req.query.timezone, '"UTC"');

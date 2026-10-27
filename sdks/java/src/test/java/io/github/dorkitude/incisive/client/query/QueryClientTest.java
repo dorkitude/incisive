@@ -42,7 +42,7 @@ class QueryClientTest {
     private void assertQueryRequest(String analysis, String expectedBody) throws Exception {
         MockServer.Recorded r = server.last();
         assertEquals("POST", r.method);
-        assertEquals("/3.0/projects/proj1/queries/" + analysis, r.rawPath);
+        assertEquals("/1.0/projects/proj1/queries/" + analysis, r.rawPath);
         assertNull(r.rawQuery);
         assertEquals("READ", r.header("Authorization"));
         assertEquals("application/json", r.header("Content-Type"));

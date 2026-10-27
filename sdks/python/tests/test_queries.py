@@ -9,7 +9,7 @@ FILTERS = [{"property_name": "device", "operator": "eq", "property_value": "iPho
 def check_query(server, analysis):
     req = server.last
     assert req.method == "GET"
-    assert req.path == "/3.0/projects/proj1/queries/" + analysis
+    assert req.path == "/1.0/projects/proj1/queries/" + analysis
     assert req.headers["Authorization"] == "rk"
     assert req.body == b""
     return req

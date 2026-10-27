@@ -17,7 +17,7 @@ cached datasets and scoped keys. The only runtime dependency is Jackson.
 | Setting | Builder method | Environment variable | Default |
 |---|---|---|---|
 | Base URL | `withBaseUrl(...)` | `INCISIVE_BASE_URL` | `http://localhost:8080` |
-| API version | `withApiVersion(...)` | none | `3.0` |
+| API version | `withApiVersion(...)` | none | `1.0` |
 | Project id | `IncisiveProject(...)` | `INCISIVE_PROJECT_ID` | none |
 | Write key | `IncisiveProject(...)` | `INCISIVE_WRITE_KEY` | none |
 | Read key | `IncisiveProject(...)` | `INCISIVE_READ_KEY` | none |

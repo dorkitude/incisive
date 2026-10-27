@@ -20,7 +20,7 @@ fn pairs(uri: &Uri) -> Vec<(String, String)> {
 
 pub async fn list_analyses(State(st): State<St>, Path(pid): Path<String>, Query(params): Query<HashMap<String, String>>, c: Client) -> ApiResult<Json<Value>> {
     authorize(&st, &pid, &c.headers, &params, Op::Query)?;
-    let out: Vec<Value> = ANALYSES.iter().map(|a| json!({"name": a, "url": format!("/3.0/projects/{pid}/queries/{a}")})).collect();
+    let out: Vec<Value> = ANALYSES.iter().map(|a| json!({"name": a, "url": format!("/1.0/projects/{pid}/queries/{a}")})).collect();
     Ok(Json(Value::Array(out)))
 }
 
@@ -109,7 +109,7 @@ fn saved_json(pid: &str, sq: &crate::meta::SavedQuery, kind: &str) -> Value {
     v.insert("created_date".into(), json!(iso(sq.created_at)));
     v.insert("last_modified_date".into(), json!(iso(sq.updated_at)));
     v.insert("run_information".into(), Value::Null);
-    let base = format!("/3.0/projects/{pid}/queries/{kind}/{}", sq.name);
+    let base = format!("/1.0/projects/{pid}/queries/{kind}/{}", sq.name);
     v.insert("urls".into(), json!({"self": base, "result": format!("{base}/result")}));
     Value::Object(v)
 }
