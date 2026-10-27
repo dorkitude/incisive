@@ -32,7 +32,7 @@ pub const ANALYSES: [&str; 12] = [
     "multi_analysis",
 ];
 
-fn needs_target(a: &str) -> bool {
+pub fn needs_target(a: &str) -> bool {
     matches!(a, "count_unique" | "sum" | "average" | "minimum" | "maximum" | "median" | "percentile" | "select_unique")
 }
 

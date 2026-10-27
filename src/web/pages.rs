@@ -58,12 +58,12 @@ document.addEventListener('click',function(e){
 })();"#;
 
 /// A one-click copy button for a literal value.
-fn copy_button(text: &str) -> Markup {
+pub(super) fn copy_button(text: &str) -> Markup {
     html! { button.copy type="button" data-copy=(text) { "Copy" } }
 }
 
 /// A labeled code block with a copy button. `id` must be unique on the page.
-fn snippet(label: &str, id: &str, text: &str) -> Markup {
+pub(super) fn snippet(label: &str, id: &str, text: &str) -> Markup {
     html! {
         div.code {
             div.code-hd { span.l { (label) } button.copy type="button" data-copy-from=(id) { "Copy" } }
@@ -73,17 +73,22 @@ fn snippet(label: &str, id: &str, text: &str) -> Markup {
 }
 
 /// A small labeled value with a copy button.
-fn fact(label: &str, value: &str) -> Markup {
+pub(super) fn fact(label: &str, value: &str) -> Markup {
     html! { div.fact { div.l { (label) } div.v { code title=(value) { (value) } (copy_button(value)) } } }
 }
 
-fn page_head(title: &str, sub: Markup, actions: Markup) -> Markup {
+pub(super) fn page_head(title: &str, sub: Markup, actions: Markup) -> Markup {
     html! { div.ph { div { h1 { (title) } p.sub { (sub) } } div.row { (actions) } } }
 }
 
 #[derive(PartialEq, Clone, Copy)]
-enum Tab {
+pub(super) enum Tab {
     Dashboard,
+    Builder,
+    Stream,
+    Collections,
+    Pivot,
+    Funnels,
     Install,
     Keys,
     Schema,
@@ -94,6 +99,11 @@ impl Tab {
     fn icon(self) -> PreEscaped<&'static str> {
         PreEscaped(match self {
             Tab::Dashboard => r#"<svg viewBox="0 0 24 24"><path d="M3 3v18h18M7 15l4-4 3 3 6-6"/></svg>"#,
+            Tab::Builder => r#"<svg viewBox="0 0 24 24"><path d="M3 5h18M6 12h12M10 19h4"/></svg>"#,
+            Tab::Stream => r#"<svg viewBox="0 0 24 24"><path d="M3 6h13M3 12h18M3 18h9"/><circle cx="20" cy="6" r="1.5"/></svg>"#,
+            Tab::Collections => r#"<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>"#,
+            Tab::Pivot => r#"<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>"#,
+            Tab::Funnels => r#"<svg viewBox="0 0 24 24"><path d="M3 4h18l-7 9v6l-4 2v-8L3 4z"/></svg>"#,
             Tab::Install => r#"<svg viewBox="0 0 24 24"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>"#,
             Tab::Keys => r#"<svg viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2M17 6l3 3M14.5 8.5l2 2"/></svg>"#,
             Tab::Schema => r#"<svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>"#,
@@ -102,7 +112,7 @@ impl Tab {
     }
 }
 
-fn layout(st: &St, u: &WebUser, p: &Project, tab: Tab, title: &str, body: Markup) -> String {
+pub(super) fn layout(st: &St, u: &WebUser, p: &Project, tab: Tab, title: &str, body: Markup) -> String {
     let projects = st.meta.projects_for(&u.user.id).unwrap_or_default();
     let base = format!("/app/p/{}", p.id);
     let t = |t: Tab, label: &str, href: String| html! { a.on[tab == t] href=(href) { (t.icon()) (label) } };
@@ -126,7 +136,18 @@ fn layout(st: &St, u: &WebUser, p: &Project, tab: Tab, title: &str, body: Markup
                         }
                     }
                     nav.nav {
-                        (t(Tab::Dashboard, "Dashboard", base.clone()))
+                        (t(Tab::Dashboard, "Web Analytics", base.clone()))
+                    }
+                    div.nav-label { "Explore " span { "5 drafts" } }
+                    nav.nav {
+                        (t(Tab::Builder, "Query builder", format!("{base}/explore")))
+                        (t(Tab::Stream, "Event stream", format!("{base}/stream")))
+                        (t(Tab::Collections, "Collections", format!("{base}/collections")))
+                        (t(Tab::Pivot, "Pivot", format!("{base}/pivot")))
+                        (t(Tab::Funnels, "Funnels", format!("{base}/funnels")))
+                    }
+                    div.nav-label { "Project" }
+                    nav.nav {
                         (t(Tab::Install, "Install", format!("{base}/install")))
                         (t(Tab::Keys, "API keys", format!("{base}/keys")))
                         (t(Tab::Schema, "Schema", format!("{base}/schema")))
@@ -223,7 +244,7 @@ pub fn code_email_html(code: &str) -> String {
 
 // ---- formatting ----
 
-fn fmt_int(n: u64) -> String {
+pub(super) fn fmt_int(n: u64) -> String {
     let s = n.to_string();
     let mut out = String::new();
     for (i, c) in s.chars().enumerate() {
@@ -235,7 +256,7 @@ fn fmt_int(n: u64) -> String {
     out
 }
 
-fn fmt_compact(n: f64) -> String {
+pub(super) fn fmt_compact(n: f64) -> String {
     if n >= 1e6 {
         format!("{:.1}M", n / 1e6)
     } else if n >= 1e4 {
@@ -249,7 +270,7 @@ fn fmt_compact(n: f64) -> String {
     }
 }
 
-fn fmt_duration(secs: f64) -> String {
+pub(super) fn fmt_duration(secs: f64) -> String {
     let s = secs.round() as u64;
     if s >= 3600 {
         format!("{}h {}m", s / 3600, (s % 3600) / 60)
@@ -346,7 +367,7 @@ fn kpi(m: Metric, on: bool, r: &Report, href: String) -> Markup {
     }
 }
 
-fn nice_max(v: f64) -> f64 {
+pub(super) fn nice_max(v: f64) -> f64 {
     if v <= 0.0 {
         return 1.0;
     }
@@ -359,7 +380,7 @@ fn nice_max(v: f64) -> f64 {
     10.0 * mag
 }
 
-fn local_label(zone: Zone, t: chrono::DateTime<chrono::Utc>, hourly: bool) -> String {
+pub(super) fn local_label(zone: Zone, t: chrono::DateTime<chrono::Utc>, hourly: bool) -> String {
     let s = zone.format(t);
     match chrono::DateTime::parse_from_rfc3339(&s) {
         Ok(l) if hourly => l.format("%-I %p").to_string(),
@@ -370,8 +391,24 @@ fn local_label(zone: Zone, t: chrono::DateTime<chrono::Utc>, hourly: bool) -> St
 
 /// An area chart with a crosshair tooltip, for one series.
 fn chart(r: &Report, m: Metric, zone: Zone, hourly: bool) -> Markup {
-    let (w, h, left, bottom, top) = (1000.0, 260.0, 44.0, 26.0, 10.0);
     let vals: Vec<Option<f64>> = r.series.iter().map(|b| m.value(&b.totals)).collect();
+    let ticks: Vec<String> = r.series.iter().map(|b| local_label(zone, b.range.start, hourly)).collect();
+    let tips: Vec<String> = r
+        .series
+        .iter()
+        .zip(&vals)
+        .map(|(b, v)| {
+            let when = if hourly { format!("{} {}", local_label(zone, b.range.start, false), local_label(zone, b.range.start, true)) } else { local_label(zone, b.range.start, false) };
+            format!("{when}\u{1f}{}", m.fmt(*v))
+        })
+        .collect();
+    let axis = |v: f64| if m == Metric::Bounce { format!("{v:.0}%") } else if m == Metric::Duration { fmt_duration(v) } else { fmt_compact(v) };
+    line_chart(&ticks, &tips, &vals, m.label(), &axis)
+}
+
+/// A one-series area chart with a crosshair tooltip. `tips` are "label\x1fvalue" per point.
+pub(super) fn line_chart(ticks: &[String], tips: &[String], vals: &[Option<f64>], name: &str, axis: &dyn Fn(f64) -> String) -> Markup {
+    let (w, h, left, bottom, top) = (1000.0, 260.0, 44.0, 26.0, 10.0);
     let max = nice_max(vals.iter().flatten().cloned().fold(0.0, f64::max));
     let n = vals.len().max(1);
     let x = |i: usize| left + (w - left) * if n == 1 { 0.5 } else { i as f64 / (n - 1) as f64 };
@@ -380,15 +417,13 @@ fn chart(r: &Report, m: Metric, zone: Zone, hourly: bool) -> Markup {
     let line: String = pts.iter().enumerate().map(|(i, (px, py))| format!("{}{px:.1},{py:.1}", if i == 0 { "M" } else { "L" })).collect();
     let area = format!("{line}L{:.1},{:.1}L{:.1},{:.1}Z", pts.last().map_or(left, |p| p.0), y(0.0), pts.first().map_or(left, |p| p.0), y(0.0));
     let label_every = (n as f64 / 7.0).ceil().max(1.0) as usize;
-    let data: Vec<Value> = r
-        .series
-        .iter()
-        .zip(&vals)
-        .map(|(b, v)| json!({"label": if hourly { format!("{} {}", local_label(zone, b.range.start, false), local_label(zone, b.range.start, true)) } else { local_label(zone, b.range.start, false) }, "value": m.fmt(*v)}))
-        .collect();
+    let data: Vec<Value> = tips.iter().map(|t| {
+        let (l, v) = t.split_once('\u{1f}').unwrap_or((t, ""));
+        json!({"label": l, "value": v})
+    }).collect();
     html! {
-        div.chart #chart data-points=(serde_json::to_string(&pts).unwrap()) data-series=(serde_json::to_string(&data).unwrap()) data-name=(m.label()) {
-            svg viewBox=(format!("0 0 {w} {h}")) preserveAspectRatio="none" role="img" aria-label=(format!("{} over time", m.label())) {
+        div.chart data-points=(serde_json::to_string(&pts).unwrap()) data-series=(serde_json::to_string(&data).unwrap()) data-name=(name) {
+            svg viewBox=(format!("0 0 {w} {h}")) preserveAspectRatio="none" role="img" aria-label=(format!("{name} over time")) {
                 g.grid {
                     @for k in 0..=4 {
                         @let gy = y(max * k as f64 / 4.0);
@@ -397,35 +432,32 @@ fn chart(r: &Report, m: Metric, zone: Zone, hourly: bool) -> Markup {
                 }
                 path.area d=(area) {}
                 path.line d=(line) vector-effect="non-scaling-stroke" {}
-                line.cross #cross x1="0" x2="0" y1=(top) y2=(h - bottom) style="display:none" vector-effect="non-scaling-stroke" {}
+                line.cross x1="0" x2="0" y1=(top) y2=(h - bottom) style="display:none" vector-effect="non-scaling-stroke" {}
             }
             // Axis labels in HTML so they do not stretch with the SVG.
             div.axis style="position:absolute;inset:0;pointer-events:none;font-size:11px;color:var(--faint)" {
                 @for k in 0..=4 {
                     @let v = max * k as f64 / 4.0;
-                    div style=(format!("position:absolute;left:0;top:calc({:.2}% - 8px)", y(v) / h * 100.0)) {
-                        (if m == Metric::Bounce { format!("{v:.0}%") } else if m == Metric::Duration { fmt_duration(v) } else { fmt_compact(v) })
-                    }
+                    div style=(format!("position:absolute;left:0;top:calc({:.2}% - 8px)", y(v) / h * 100.0)) { (axis(v)) }
                 }
-                @for (i, b) in r.series.iter().enumerate() {
+                @for (i, t) in ticks.iter().enumerate() {
                     @if i % label_every == 0 {
-                        div style=(format!("position:absolute;bottom:0;left:{:.2}%;transform:translateX(-50%);white-space:nowrap", x(i) / w * 100.0)) {
-                            (local_label(zone, b.range.start, hourly))
-                        }
+                        div style=(format!("position:absolute;bottom:0;left:{:.2}%;transform:translateX(-50%);white-space:nowrap", x(i) / w * 100.0)) { (t) }
                     }
                 }
             }
-            div.dot #dot style="display:none;position:absolute;width:10px;height:10px;border-radius:50%;background:var(--accent);border:2px solid var(--surface);box-shadow:0 0 0 4px var(--accent-soft);transform:translate(-50%,-50%)" {}
-            div.tip #tip style="display:none" {}
+            div.dot style="display:none;position:absolute;width:10px;height:10px;border-radius:50%;background:var(--accent);border:2px solid var(--surface);box-shadow:0 0 0 4px var(--accent-soft);transform:translate(-50%,-50%)" {}
+            div.tip style="display:none" {}
         }
         script { (PreEscaped(CHART_JS)) }
     }
 }
 
+/// Wires every chart on the page that is not wired yet.
 const CHART_JS: &str = r#"(function(){
-var c=document.getElementById('chart'); if(!c) return;
+document.querySelectorAll('.chart[data-points]:not([data-on])').forEach(function(c){ c.setAttribute('data-on','1');
 var pts=JSON.parse(c.dataset.points), s=JSON.parse(c.dataset.series), svg=c.querySelector('svg');
-var cross=document.getElementById('cross'), tip=document.getElementById('tip'), dot=document.getElementById('dot');
+var cross=c.querySelector('.cross'), tip=c.querySelector('.tip'), dot=c.querySelector('.dot');
 function show(ev){ var r=svg.getBoundingClientRect(); var fx=(ev.clientX-r.left)/r.width*1000;
  var best=0; for(var i=1;i<pts.length;i++){ if(Math.abs(pts[i][0]-fx)<Math.abs(pts[best][0]-fx)) best=i; }
  var p=pts[best]; cross.setAttribute('x1',p[0]); cross.setAttribute('x2',p[0]); cross.style.display='';
@@ -436,14 +468,15 @@ function show(ev){ var r=svg.getBoundingClientRect(); var fx=(ev.clientX-r.left)
 function hide(){ cross.style.display='none'; tip.style.display='none'; dot.style.display='none'; }
 c.addEventListener('mousemove',show); c.addEventListener('mouseleave',hide);
 c.addEventListener('touchstart',function(e){show(e.touches[0]);},{passive:true});
+});
 })();"#;
 
 /// Sets the browser's timezone in a cookie and reloads once when it changed.
-const TZ_JS: &str = r#"(function(){try{var tz=Intl.DateTimeFormat().resolvedOptions().timeZone;
+pub(super) const TZ_JS: &str = r#"(function(){try{var tz=Intl.DateTimeFormat().resolvedOptions().timeZone;
 var m=document.cookie.match(/(?:^|; )incisive_tz=([^;]*)/); var cur=m?decodeURIComponent(m[1]):'';
 if(tz&&tz!==cur){document.cookie='incisive_tz='+encodeURIComponent(tz)+'; path=/; max-age=31536000; SameSite=Lax'; if(!sessionStorage.getItem('tzr')){sessionStorage.setItem('tzr','1');location.reload();}}}catch(e){}})();"#;
 
-fn bars(title: &str, col: &str, unit: &str, rows: &[Row]) -> Markup {
+pub(super) fn bars(title: &str, col: &str, unit: &str, rows: &[Row]) -> Markup {
     let max = rows.iter().map(|r| r.count).max().unwrap_or(1).max(1);
     html! {
         div.card {
@@ -503,7 +536,7 @@ pub async fn dashboard(State(st): State<St>, u: WebUser, Path(pid): Path<String>
         }
     };
     let body = html! {
-        (page_head("Dashboard", html! { span.live { i {} (fmt_int(live)) " visitors in the last 30 minutes" } }, range_seg))
+        (page_head("Web Analytics", html! { span.live { i {} (fmt_int(live)) " visitors in the last 30 minutes" } }, range_seg))
         @if empty {
             div.notice {
                 "No pageviews yet. " a href=(format!("{base}/install")) { "Install the tracker" } " on your site and visits will appear here within seconds."
@@ -552,7 +585,7 @@ pub async fn dashboard(State(st): State<St>, u: WebUser, Path(pid): Path<String>
         script { (PreEscaped(TZ_JS)) }
     };
     let remember = format!("{PROJECT_COOKIE}={pid}; Path=/; HttpOnly; SameSite=Lax; Max-Age=34560000{}", if st.cfg.server.secure_cookies { "; Secure" } else { "" });
-    ([(axum::http::header::SET_COOKIE, remember)], Html(layout(&st, &u, &p, Tab::Dashboard, "Dashboard", body))).into_response()
+    ([(axum::http::header::SET_COOKIE, remember)], Html(layout(&st, &u, &p, Tab::Dashboard, "Web Analytics", body))).into_response()
 }
 
 #[derive(Default)]

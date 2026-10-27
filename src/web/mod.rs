@@ -1,6 +1,7 @@
 //! The web app: email sign-in, projects, API keys, install snippets, schema docs, dashboard.
 
 pub mod dashboard;
+mod explore;
 pub mod mail;
 mod pages;
 
@@ -31,6 +32,12 @@ pub fn router(st: St) -> Router {
         .route("/app", get(app_home))
         .route("/app/projects", post(create_project))
         .route("/app/p/{pid}", get(pages::dashboard))
+        .route("/app/p/{pid}/explore", get(explore::builder))
+        .route("/app/p/{pid}/explore/save", post(explore::save_query))
+        .route("/app/p/{pid}/stream", get(explore::stream_page))
+        .route("/app/p/{pid}/collections", get(explore::collections_page))
+        .route("/app/p/{pid}/pivot", get(explore::pivot_page))
+        .route("/app/p/{pid}/funnels", get(explore::funnels_page))
         .route("/app/p/{pid}/keys", get(pages::keys_page).post(pages::create_key))
         .route("/app/p/{pid}/keys/{id}/{action}", post(pages::key_action))
         .route("/app/p/{pid}/install", get(pages::install_page).post(pages::mint_write_key))
