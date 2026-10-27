@@ -33,6 +33,9 @@ pub struct Server {
     pub shutdown_timeout_secs: u64,
     /// Whether session cookies carry the Secure attribute.
     pub secure_cookies: bool,
+    /// Where install snippets load the web tracker from, e.g. a public CDN bucket. Empty means
+    /// this server's own `/js/incisive.js`.
+    pub tracker_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -137,6 +140,7 @@ impl Default for Server {
             redirect_allow_hosts: vec![],
             shutdown_timeout_secs: 30,
             secure_cookies: false,
+            tracker_url: String::new(),
         }
     }
 }

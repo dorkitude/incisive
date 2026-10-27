@@ -425,7 +425,7 @@ pub async fn dashboard(State(st): State<St>, u: WebUser, Path(pid): Path<String>
         Ok(x) => x,
         Err(e) => return internal(e),
     };
-    let custom = custom_events(&st, &pid, tf, &tz_name).await;
+    let (custom, interactions) = tokio::join!(custom_events(&st, &pid, tf, &tz_name), interactions(&st, &pid, tf, &tz_name));
     let base = format!("/app/p/{pid}");
     let href = |range: &str, metric: Metric| format!("{base}?range={range}&metric={}", metric.key());
     let empty = report.totals.pageviews == 0 && report.previous.pageviews == 0;
@@ -454,6 +454,8 @@ pub async fn dashboard(State(st): State<St>, u: WebUser, Path(pid): Path<String>
             p.muted style="margin:8px 0 0;font-size:12px" {
                 "Times in " (tz_name) ". Pages per session: "
                 (report.totals.pages_per_session().map(|x| format!("{x:.2}")).unwrap_or("–".into()))
+                @if let Some(e) = interactions.engaged_seconds { ". Avg. engaged time per page: " (fmt_duration(e)) }
+                @if let Some(sc) = interactions.scroll { ". Avg. scroll depth: " (format!("{sc:.0}%")) }
                 @if report.bots_excluded > 0 { ". " (fmt_int(report.bots_excluded)) " bot pageviews excluded" }
                 "."
             }
@@ -468,11 +470,68 @@ pub async fn dashboard(State(st): State<St>, u: WebUser, Path(pid): Path<String>
             (bars("Devices", "Device", "Sessions", &report.devices))
             (bars("Browsers", "Browser", "Sessions", &report.browsers))
             (bars("Operating systems", "OS", "Sessions", &report.oses))
+            (bars("Clicks", "Element", "Clicks", &interactions.clicks))
+            (bars("Outbound links", "Destination", "Clicks", &interactions.outbound))
+            (bars("Form submissions", "Form", "Submissions", &interactions.forms))
             (bars("Custom events", "Collection", "Events", &custom))
         }
         script { (PreEscaped(TZ_JS)) }
     };
     Html(layout(&st, &u, &p, Tab::Dashboard, "Dashboard", body)).into_response()
+}
+
+#[derive(Default)]
+struct Interactions {
+    clicks: Vec<Row>,
+    outbound: Vec<Row>,
+    forms: Vec<Row>,
+    engaged_seconds: Option<f64>,
+    scroll: Option<f64>,
+}
+
+/// Breakdowns of the auto-tracked interaction collections.
+async fn interactions(st: &St, pid: &str, tf: &str, tz: &str) -> Interactions {
+    let ex = crate::query::exec::Executor::new(&st.engine, st.query_limits(), chrono::Utc::now());
+    let run = |analysis: &'static str, m: Value| {
+        let ex = &ex;
+        async move {
+            let mut m = m;
+            m["timeframe"] = json!(tf);
+            m["timezone"] = json!(tz);
+            let q = crate::query::parse(analysis, m.as_object()?).ok()?;
+            ex.run(pid, &q, &[]).await.ok().and_then(|mut o| o.remove("result"))
+        }
+    };
+    let top = |res: Option<Value>, label: &str| -> Vec<Row> {
+        let mut rows: Vec<Row> = res
+            .and_then(|v| v.as_array().cloned())
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|r| {
+                let l = r.get(label)?.as_str()?.to_string();
+                Some(Row { label: if l.is_empty() { "(no text)".into() } else { l }, count: r.get("result")?.as_u64()?, visitors: 0 })
+            })
+            .collect();
+        rows.sort_by(|a, b| b.count.cmp(&a.count));
+        rows.truncate(10);
+        rows
+    };
+    let (clicks, outbound, forms, engaged, scroll) = tokio::join!(
+        run("count", json!({"event_collection": standard::CLICK, "group_by": "element.text",
+            "filters": [{"property_name": "link.is_outbound", "operator": "ne", "property_value": true}]})),
+        run("count", json!({"event_collection": standard::CLICK, "group_by": "link.hostname",
+            "filters": [{"property_name": "link.is_outbound", "operator": "eq", "property_value": true}]})),
+        run("count", json!({"event_collection": standard::FORM_SUBMIT, "group_by": "page.path"})),
+        run("average", json!({"event_collection": standard::ENGAGEMENT, "target_property": "engagement.engaged_seconds"})),
+        run("average", json!({"event_collection": standard::ENGAGEMENT, "target_property": "engagement.max_scroll_percent"})),
+    );
+    Interactions {
+        clicks: top(clicks, "element.text"),
+        outbound: top(outbound, "link.hostname"),
+        forms: top(forms, "page.path"),
+        engaged_seconds: engaged.and_then(|v| v.as_f64()),
+        scroll: scroll.and_then(|v| v.as_f64()),
+    }
 }
 
 /// Event counts for the project's non-standard collections.
@@ -694,6 +753,7 @@ pub async fn install_page(State(st): State<St>, u: WebUser, Path(pid): Path<Stri
         Err(r) => return r,
     };
     let public = st.cfg.server.public_url.trim_end_matches('/').to_string();
+    let tracker = if st.cfg.server.tracker_url.is_empty() { format!("{public}/js/incisive.js") } else { st.cfg.server.tracker_url.clone() };
     let keys = write_keys(&st, &pid);
     let body = html! {
         h1 { "Install" }
@@ -710,11 +770,13 @@ pub async fn install_page(State(st): State<St>, u: WebUser, Path(pid): Path<Stri
             @let key = keys[0].secret.clone().unwrap_or_default();
             div.card style="margin-bottom:16px" {
                 h2 { "1. Website tracker" }
-                p { "Paste this before " code { "</head>" } " on every page. It records " code { "web_session" } " and " code { "web_pageview" } " events with the standard schema: visitor and session IDs, landing page, referrer, campaign parameters, device, browser, language, timezone, performance timings and more. Single-page apps are tracked automatically." }
-                pre { (format!("<script defer src=\"{public}/js/incisive.js\"\n  data-project=\"{}\"\n  data-key=\"{key}\"></script>", p.id)) }
+                p { "Paste this before " code { "</head>" } " on every page. Nothing else is required: it auto-tracks sessions, pageviews (including single-page-app navigation), clicks with outbound-link and download detection, form submissions, engaged time and scroll depth, and elements marked " code { "data-track-view" } " scrolling into view. Every event carries the full standard context (visitor, session, campaign, channel, device, browser, location) so each collection answers questions on its own." }
+                pre { (format!("<script defer src=\"{tracker}\"\n  data-project=\"{}\"\n  data-key=\"{key}\"\n  data-host=\"{public}\"></script>", p.id)) }
+                p { "Choose what is auto-tracked with " code { "data-auto-track=\"pageviews,clicks,forms,engagement,views,errors\"" } " (or " code { "\"false\"" } " for none). Name important clicks with " code { "data-track=\"signup-cta\"" } " and exclude elements with " code { "data-incisive-ignore" } ". Form field values are never sent." }
+                p { "Or start it yourself with one call. Every flag is optional (all on except " code { "errors" } "), and the page load is always tracked. " code { "properties" } " are joined into every event; functions are called on each event with " code { "{collection, event}" } ":" }
+                pre { (format!("<script src=\"{tracker}\"></script>\n<script>\n  incisive.trackAll({{\n    project: \"{}\",\n    key: \"{key}\",\n    host: \"{public}\",\n    clicks: true, forms: true, engagement: true, views: true, errors: false,\n    properties: {{\n      app: {{ version: \"2.3.1\" }},\n      cart: {{ items: function () {{ return window.cart ? window.cart.length : 0; }} }}\n    }}\n  }});\n</script>", p.id)) }
                 p { "Track your own events and identify signed-in users:" }
-                pre { "incisive.track(\"signup\", {plan: \"pro\"});\nincisive.identify(\"user-42\", {plan: \"pro\"});" }
-                p.muted { "Calls made before the script loads can be queued: " code { "window.incisive = window.incisive || {q: []}; incisive.q.push([\"track\", \"signup\", {}]);" } }
+                pre { "incisive.track(\"signup\", {plan: \"pro\"});\nincisive.identify(\"user-42\", {plan: \"pro\"});\nincisive.extend({experiment: {variant: \"b\"}});  // add to every later event" }
             }
             div.card style="margin-bottom:16px" {
                 h2 { "2. Tracking pixel" }
@@ -780,7 +842,7 @@ pub async fn schema_page(State(st): State<St>, u: WebUser, Path(pid): Path<Strin
     let observed = st.engine.schema(&pid).await.unwrap_or_default();
     let body = html! {
         h1 { "Schema" }
-        p.sub { "Events are schemaless JSON. Two collections have a standard schema that powers the dashboard: send these properties (the tracker does) and the server derives the rest. You can add any other properties." }
+        p.sub { "Events are schemaless JSON. The web collections below have a standard schema that powers the dashboard: send these properties (the tracker does) and the server derives the rest. You can add any other properties." }
         div.card style="margin-bottom:16px" {
             h2 { "Standard collections: " code { (standard::PAGEVIEW) } " and " code { (standard::SESSION) } }
             p.muted { "Properties are denormalized: every pageview repeats its session's acquisition data (landing page, referrer, campaign, channel) and its visitor's identity, so any question is one query on one collection with no joins. Derived properties are only filled when absent, so you can always override them." }
@@ -796,6 +858,21 @@ pub async fn schema_page(State(st): State<St>, u: WebUser, Path(pid): Path<Strin
                                 td { @if f.session { "✓" } }
                                 td { (f.doc) }
                             }
+                        }
+                    }
+                }
+            }
+        }
+        div.card style="margin-bottom:16px" {
+            h2 { "Auto-tracked collections" }
+            p.muted { "Each carries every context property above (visitor, session, page, device, browser, location), plus its own:" }
+            ul { @for (c, doc) in standard::AUTO_COLLECTIONS { li { code { (c) } " — " (doc) } } }
+            div.table-wrap {
+                table {
+                    thead { tr { th { "Property" } th { "Type" } th { "Collections" } th { "Description" } } }
+                    tbody {
+                        @for (path, kind, colls, doc) in standard::AUTO_FIELDS {
+                            tr { td.mono { (path) } td.muted { (format!("{kind:?}").to_lowercase()) } td.mono { (colls) } td { (doc) } }
                         }
                     }
                 }

@@ -1,4 +1,6 @@
-//! Reserved collections with standard schemas: `web_pageview` and `web_session`.
+//! Reserved collections with standard schemas: `web_pageview` and `web_session`, plus the
+//! auto-tracked `web_click`, `web_form_submit`, `web_engagement`, `web_element_view` and
+//! `web_error`, which share the same context.
 //!
 //! Events are denormalized: each one carries the full context needed to analyze it on its own
 //! (visitor, session and acquisition, page, device, browser, location, time), so any question can be
@@ -15,9 +17,54 @@ use serde_json::{json, Map, Value};
 pub const PAGEVIEW: &str = "web_pageview";
 pub const SESSION: &str = "web_session";
 
+pub const CLICK: &str = "web_click";
+pub const FORM_SUBMIT: &str = "web_form_submit";
+pub const ENGAGEMENT: &str = "web_engagement";
+pub const ELEMENT_VIEW: &str = "web_element_view";
+pub const ERROR: &str = "web_error";
+
+/// The auto-tracked collections besides pageviews and sessions, with what each one records.
+pub const AUTO_COLLECTIONS: [(&str, &str); 5] = [
+    (CLICK, "Clicks on links, buttons and elements marked data-track."),
+    (FORM_SUBMIT, "Form submissions (form metadata only, never field values)."),
+    (ENGAGEMENT, "Sent when a page view ends: engaged time and scroll depth."),
+    (ELEMENT_VIEW, "Elements marked data-track-view scrolling into view."),
+    (ERROR, "JavaScript errors (off unless enabled)."),
+];
+
 pub fn is_standard(collection: &str) -> bool {
-    collection == PAGEVIEW || collection == SESSION
+    collection == PAGEVIEW || collection == SESSION || is_auto(collection)
 }
+
+pub fn is_auto(collection: &str) -> bool {
+    AUTO_COLLECTIONS.iter().any(|(c, _)| *c == collection)
+}
+
+/// Fields specific to the auto-tracked collections: (path, type, collection, description).
+pub static AUTO_FIELDS: &[(&str, Kind, &str, &str)] = &[
+    ("page.view_id", Kind::Str, "all", "ID of the page view the event happened in; joins clicks, engagement and the pageview."),
+    ("element.tag", Kind::Str, "web_click, web_element_view", "Element tag name."),
+    ("element.text", Kind::Str, "web_click, web_element_view", "Visible text (first 100 characters)."),
+    ("element.id", Kind::Str, "web_click, web_element_view", "Element id."),
+    ("element.classes", Kind::List, "web_click, web_element_view", "Element classes."),
+    ("element.selector", Kind::Str, "web_click, web_element_view", "Short CSS path to the element."),
+    ("element.track_name", Kind::Str, "web_click, web_element_view", "Value of data-track or data-track-view."),
+    ("link.url", Kind::Str, "web_click", "Link target."),
+    ("link.hostname", Kind::Str, "web_click", "Link target host."),
+    ("link.is_outbound", Kind::Bool, "web_click", "Link leaves the site."),
+    ("link.is_download", Kind::Bool, "web_click", "Link is a file download."),
+    ("form.id", Kind::Str, "web_form_submit", "Form id."),
+    ("form.name", Kind::Str, "web_form_submit", "Form name."),
+    ("form.action", Kind::Str, "web_form_submit", "Form action URL."),
+    ("form.method", Kind::Str, "web_form_submit", "get or post."),
+    ("form.field_count", Kind::Num, "web_form_submit", "Number of fields."),
+    ("form.track_name", Kind::Str, "web_form_submit", "Value of data-track on the form."),
+    ("engagement.engaged_seconds", Kind::Num, "web_engagement", "Seconds the page was visible."),
+    ("engagement.total_seconds", Kind::Num, "web_engagement", "Seconds from page view to exit."),
+    ("engagement.max_scroll_percent", Kind::Num, "web_engagement", "Deepest scroll position reached, 0 to 100."),
+    ("error.message", Kind::Str, "web_error", "Error message."),
+    ("error.source", Kind::Str, "web_error", "Script URL."),
+];
 
 /// Expected JSON type of a standard field.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -136,7 +183,14 @@ pub fn validate(collection: &str, ev: &Value) -> Result<(), ValidationError> {
         return Ok(());
     }
     for fd in FIELDS {
-        let applies = if collection == PAGEVIEW { fd.pageview } else { fd.session };
+        // Auto-tracked events carry the pageview context, so every field applies to them.
+        let applies = if collection == PAGEVIEW {
+            fd.pageview
+        } else if collection == SESSION {
+            fd.session
+        } else {
+            true
+        };
         if !applies {
             continue;
         }
@@ -145,6 +199,15 @@ pub fn validate(collection: &str, ev: &Value) -> Result<(), ValidationError> {
                 return Err(ValidationError {
                     name: "InvalidStandardPropertyError".into(),
                     description: format!("{collection}: {} must be a {:?}", fd.path, fd.kind).to_lowercase(),
+                });
+            }
+    }
+    for (path, kind, _, _) in AUTO_FIELDS {
+        if let Some(v) = lookup(ev, path)
+            && !v.is_null() && !kind_ok(*kind, v) {
+                return Err(ValidationError {
+                    name: "InvalidStandardPropertyError".into(),
+                    description: format!("{collection}: {path} must be a {kind:?}").to_lowercase(),
                 });
             }
     }

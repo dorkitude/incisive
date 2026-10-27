@@ -2,6 +2,7 @@
 # Credentials are not stored here: object storage uses the named AWS profile.
 
 [server]
+tracker_url = "https://static.tryincisive.com/js/incisive.js"
 addr = "127.0.0.1:8080"
 public_url = "https://dev.tryincisive.com"
 trust_forwarded_for = true
