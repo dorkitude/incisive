@@ -132,7 +132,8 @@ Or start it with one call:
 incisive.trackAll({
   project: "PROJECT_ID", key: "WRITE_KEY", host: "https://API_HOST",
   clicks: true, forms: true, engagement: true, views: true, errors: false,
-  properties: { app: { version: "2.3.1" }, cart: { items: () => window.cart.length } },
+  // Optional: properties added to every event. These are placeholders; a function is called on each event.
+  // properties: { app: { version: "2.3.1" }, cart: { items: () => window.cart.length } },
 });
 ```
 
