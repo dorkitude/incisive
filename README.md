@@ -129,3 +129,7 @@ through it, with a ready-made Caddy config, systemd unit and example configurati
 - [docs/api.md](docs/api.md): writing events, queries, keys and permissions
 - [docs/how-it-works.md](docs/how-it-works.md): how events are stored, compacted and queried
 - [Contributing and tests](docs/how-it-works.md#tests)
+
+## License
+
+MIT, for the server and every client library. See [LICENSE](LICENSE).
