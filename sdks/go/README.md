@@ -66,6 +66,41 @@ b.Flush()                                        // send now and wait
 `BatchClient` embeds `*Client`, so all other methods are available on it. Events still
 buffered when the process exits without `Close` are lost.
 
+### Server-side tracking
+
+`Tracker` records events from a server without ever slowing down or failing a request: events
+are buffered (at most 10,000 by default), sent every 2 seconds, and dropped if the server can't
+be reached. Each event gets an `app` object, a timestamp, and enrichment add-ons that turn
+`client.ip` into `ip_geo_info` and `client.user_agent` into `tech`.
+
+```go
+tracker := incisive.NewTracker(c, incisive.TrackerOptions{
+    App:     map[string]any{"name": "shop"},
+    OnError: func(err error) { log.Println("analytics:", err) }, // at most once a minute
+})
+defer tracker.Close()
+
+tracker.Track("purchases", map[string]any{
+    "item":   map[string]any{"name": "hat", "price": 25},
+    "caller": map[string]any{"key": "user:42", "plan": "pro"},
+    "client": incisive.ClientFacts(r), // ip, user_agent, library
+})
+```
+
+`tracker.Middleware` records every API request as an event in `api_requests`: the endpoint, the
+request (secrets in the query string are redacted), the response status, size, duration and
+error message, the client, and whoever made the call:
+
+```go
+mux.Handle("/api/", tracker.Middleware(incisive.RequestTracking{
+    Route:  func(r *http.Request) string { return chi.RouteContext(r.Context()).RoutePattern() },
+    Caller: func(r *http.Request) map[string]any { return lookUpAccount(r.Header.Get("Authorization")) },
+})(apiHandler))
+```
+
+`Caller` runs after the response has been sent, so a database lookup there costs the client
+nothing. A nil `*Tracker` does nothing, which makes it easy to switch off in tests.
+
 ## Analyses
 
 All analyses POST a JSON body to `/1.0/projects/{id}/queries/{analysis}` with the read

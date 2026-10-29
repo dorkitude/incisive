@@ -10,6 +10,10 @@ import (
 // ErrBatchClientClosed is returned by BatchClient.AddEvent after Close.
 var ErrBatchClientClosed = errors.New("incisive: batch client is closed")
 
+// ErrBatchFull is returned by BatchClient.AddEvent when WithMaxPending events
+// are already buffered; the event is dropped.
+var ErrBatchFull = errors.New("incisive: batch buffer is full; event dropped")
+
 // BatchOption configures a BatchClient.
 type BatchOption func(*BatchClient)
 
@@ -18,6 +22,13 @@ type BatchOption func(*BatchClient)
 // Flush/Close send events.
 func WithMaxBatchSize(n int) BatchOption {
 	return func(b *BatchClient) { b.maxBatch = n }
+}
+
+// WithMaxPending caps how many events may wait in the buffer, so a long
+// outage cannot grow memory without bound. Beyond it AddEvent drops the event
+// and returns ErrBatchFull. n <= 0 (the default) means no cap.
+func WithMaxPending(n int) BatchOption {
+	return func(b *BatchClient) { b.maxPending = n }
 }
 
 // WithErrorHandler receives errors from background (interval or size
@@ -40,6 +51,7 @@ type BatchClient struct {
 
 	interval     time.Duration
 	maxBatch     int
+	maxPending   int
 	onError      func(error)
 	flushTimeout time.Duration
 
@@ -103,6 +115,10 @@ func (b *BatchClient) AddEvent(collection string, event interface{}) error {
 	if b.closed {
 		b.mu.Unlock()
 		return ErrBatchClientClosed
+	}
+	if b.maxPending > 0 && b.n >= b.maxPending {
+		b.mu.Unlock()
+		return ErrBatchFull
 	}
 	b.buf[collection] = append(b.buf[collection], event)
 	b.n++
