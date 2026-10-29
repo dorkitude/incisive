@@ -3,5 +3,5 @@ Description=Refresh the Incisive IP geolocation database
 
 [Service]
 Type=oneshot
-ExecStart=/opt/incisive/update_geo.sh /var/lib/incisive/geo/dbip-city-lite.mmdb
+ExecStart=/usr/local/bin/incisive-update-geo /var/lib/incisive/geo/city.mmdb
 ExecStartPost=/bin/systemctl restart incisive.service

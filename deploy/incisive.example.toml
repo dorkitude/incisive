@@ -1,0 +1,37 @@
+# Example configuration for a server. Copy it to /etc/incisive/incisive.toml and edit.
+# Every setting can also come from the environment: INCISIVE_<SECTION>__<KEY>.
+# See docs/self-hosting.md for what each part does.
+
+[server]
+addr = "127.0.0.1:8080"
+public_url = "https://analytics.example.com"
+# Behind a reverse proxy that sets X-Forwarded-For, and not reachable any other way.
+trust_forwarded_for = true
+secure_cookies = true
+
+[storage]
+backend = "s3"
+bucket = "my-incisive-data"
+# endpoint = "https://<your S3-compatible endpoint>"   # not needed for AWS S3
+region = "auto"
+# Credentials come from AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY or this profile in
+# ~/.aws/credentials of the user Incisive runs as. Never put them in this file.
+profile = "incisive"
+prefix = ""
+
+[cache]
+dir = "/var/lib/incisive/cache"
+max_disk_bytes = 20_000_000_000
+
+[meta]
+path = "/var/lib/incisive/meta.sqlite"
+backup_interval_secs = 300
+
+[email]
+resend_url = "https://api.resend.com"
+# Set the key in the environment instead: INCISIVE_EMAIL__API_KEY=...
+from = "Incisive <login@example.com>"
+log_only = false
+
+# [geo]
+# db_path = "/var/lib/incisive/geo/city.mmdb"

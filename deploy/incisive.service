@@ -4,7 +4,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-User=exedev
+User=incisive
 ExecStart=/usr/local/bin/incisive --config /etc/incisive/incisive.toml serve
 Environment=RUST_LOG=info
 Restart=on-failure

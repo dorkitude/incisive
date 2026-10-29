@@ -1,22 +1,6 @@
-# Host Caddy on the exe.dev share port. The exe.dev proxy terminates TLS and sends every
-# hostname here, so route by Host and refuse the rest.
-{
-	auto_https off
-}
-
-:8000 {
-	log {
-		output file /var/log/caddy/access.log
-		format json
-	}
-	@app host dev.tryincisive.com incisive.exe.xyz
-	handle @app {
-		reverse_proxy 127.0.0.1:8080 {
-			# Only the exe.dev proxy can reach this port; keep its X-Forwarded-For chain.
-			trusted_proxies 0.0.0.0/0 ::/0
-		}
-	}
-	handle {
-		respond "Not found" 404
-	}
+# Caddy obtains and renews the HTTPS certificate for this name automatically.
+# Point the name's DNS at this machine, then: sudo cp deploy/Caddyfile /etc/caddy/Caddyfile
+analytics.example.com {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8080
 }
