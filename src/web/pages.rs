@@ -4,7 +4,7 @@ use super::dashboard::{self, Report, Row, Totals};
 use super::{cookie, internal, WebUser, PROJECT_COOKIE, TZ_COOKIE};
 use crate::api::St;
 use crate::auth::{self, KeyOptions, NamedOptions, QueriesOptions, WritesOptions};
-use crate::meta::{ApiKey, Project};
+use crate::meta::{AccountKey, ApiKey, Project};
 use crate::query::timeframe::{parse_timeframe, parse_timezone, Zone};
 use crate::standard;
 use axum::extract::{Path, Query, State};
@@ -100,6 +100,7 @@ pub(super) enum Tab {
     Keys,
     Schema,
     Settings,
+    Account,
 }
 
 impl Tab {
@@ -115,6 +116,7 @@ impl Tab {
             Tab::Keys => r#"<svg viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2M17 6l3 3M14.5 8.5l2 2"/></svg>"#,
             Tab::Schema => r#"<svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>"#,
             Tab::Settings => r#"<svg viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>"#,
+            Tab::Account => r#"<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>"#,
         })
     }
 }
@@ -165,6 +167,10 @@ pub(super) fn layout(st: &St, u: &WebUser, p: &Project, tab: Tab, title: &str, b
                         (t(Tab::Keys, "API keys", format!("{base}/keys")))
                         (t(Tab::Schema, "Schema", format!("{base}/schema")))
                         (t(Tab::Settings, "Settings", format!("{base}/settings")))
+                    }
+                    div.nav-label { "Account" }
+                    nav.nav {
+                        (t(Tab::Account, "Account keys", format!("{base}/account")))
                     }
                     div.side-foot {
                         @if let Some(ip) = &u.ip {
@@ -1103,4 +1109,101 @@ pub async fn rename_project(State(st): State<St>, u: WebUser, Path(pid): Path<St
             return internal(e);
         }
     Redirect::to(&format!("/app/p/{pid}/settings")).into_response()
+}
+
+// ---- account keys ----
+
+fn account_body(st: &St, u: &WebUser, p: &Project, created: Option<(&AccountKey, &str)>, error: Option<&str>) -> Markup {
+    let keys = st.meta.account_keys(&u.user.id).unwrap_or_default();
+    let public = st.cfg.server.public_url.trim_end_matches('/').to_string();
+    let base = format!("/app/p/{}/account", p.id);
+    html! {
+        (page_head("Account keys", html! { "An account master key works as the master key of every project you belong to, including ones created later, and can create projects and other account keys through " code { "/1.0/account" } ". Keep it secret, like a password." }, html! {}))
+        @if let Some((k, secret)) = created {
+            div.notice.ok {
+                b { "New account key “" (k.name) "” created." }
+                " Copy it now: it won't be shown again."
+                div style="margin-top:8px" { (copyable(secret)) }
+            }
+        }
+        @if let Some(e) = error { div.notice.err { (e) } }
+        div.card style="margin-bottom:16px;padding:8px 12px" {
+            @if keys.is_empty() { div.empty { "No account keys yet." } } @else {
+                div.table-wrap {
+                    table {
+                        thead { tr { th { "Name" } th { "Key" } th { "Created" } th { "Last used" } th {} } }
+                        tbody {
+                            @for k in &keys {
+                                tr {
+                                    td style="white-space:nowrap" { b { (k.name) } }
+                                    td.mono { (k.hint) }
+                                    td.muted style="white-space:nowrap" { (chrono::DateTime::from_timestamp(k.created_at, 0).map(|t| t.format("%b %-d, %Y").to_string()).unwrap_or_default()) }
+                                    td.muted style="white-space:nowrap" {
+                                        (k.last_used_at.and_then(|t| chrono::DateTime::from_timestamp(t, 0)).map(|t| t.format("%b %-d, %H:%M UTC").to_string()).unwrap_or_else(|| "never".into()))
+                                    }
+                                    td {
+                                        form.inline method="post" action=(format!("{base}/{}/delete", k.id)) {
+                                            input type="hidden" name="csrf" value=(u.csrf);
+                                            button.small.danger type="submit" { "Delete" }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        div.card style="margin-bottom:16px" {
+            div.card-hd { h2 { "Create an account key" } }
+            form method="post" action=(base) {
+                input type="hidden" name="csrf" value=(u.csrf);
+                div.row { input type="text" name="name" required placeholder="e.g. Deploy scripts" style="flex:1;max-width:360px"; button type="submit" { "Create key" } }
+            }
+        }
+        div.card {
+            div.card-hd { h2 { "Using it" } }
+            (snippet("Create a project and get its keys", "snip-acct", &format!("curl -X POST {public}/1.0/account/projects \\\n  -H 'Authorization: ak_incisive_…' -H 'Content-Type: application/json' \\\n  -d '{{\"name\": \"My site\"}}'")))
+            p.muted.small { code { "GET /1.0/account" } " lists your projects. Every project route (" code { "/1.0/projects/{id}/…" } ", including " code { "/keys" } ") accepts the account key as its master key." }
+        }
+    }
+}
+
+pub async fn account_page(State(st): State<St>, u: WebUser, Path(pid): Path<String>) -> Response {
+    let p = match u.project(&st, &pid) {
+        Ok(p) => p,
+        Err(r) => return r,
+    };
+    Html(layout(&st, &u, &p, Tab::Account, "Account keys", account_body(&st, &u, &p, None, None))).into_response()
+}
+
+pub async fn create_account_key(State(st): State<St>, u: WebUser, Path(pid): Path<String>, Form(form): Form<HashMap<String, String>>) -> Response {
+    let p = match u.project(&st, &pid) {
+        Ok(p) => p,
+        Err(r) => return r,
+    };
+    if let Err(r) = u.check_csrf(&form) {
+        return r;
+    }
+    let body = match form.get("name").map(|s| s.trim()).filter(|s| !s.is_empty()) {
+        Some(name) => match st.meta.create_account_key(&u.user.id, &name.chars().take(80).collect::<String>()) {
+            Ok((k, secret)) => account_body(&st, &u, &p, Some((&k, &secret)), None),
+            Err(e) => return internal(e),
+        },
+        None => account_body(&st, &u, &p, None, Some("A name is required.")),
+    };
+    Html(layout(&st, &u, &p, Tab::Account, "Account keys", body)).into_response()
+}
+
+pub async fn delete_account_key(State(st): State<St>, u: WebUser, Path((pid, id)): Path<(String, String)>, Form(form): Form<HashMap<String, String>>) -> Response {
+    if let Err(r) = u.project(&st, &pid) {
+        return r;
+    }
+    if let Err(r) = u.check_csrf(&form) {
+        return r;
+    }
+    if let Err(e) = st.meta.delete_account_key(&u.user.id, &id) {
+        return internal(e);
+    }
+    Redirect::to(&format!("/app/p/{pid}/account")).into_response()
 }

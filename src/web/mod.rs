@@ -1,4 +1,4 @@
-//! The web app: email sign-in, projects, API keys, install snippets, schema docs, dashboard.
+//! The web app: email sign-in, projects, API and account keys, install snippets, schema docs, dashboard.
 
 pub mod dashboard;
 mod explore;
@@ -43,6 +43,8 @@ pub fn router(st: St) -> Router {
         .route("/app/p/{pid}/install", get(pages::install_page).post(pages::mint_write_key))
         .route("/app/p/{pid}/schema", get(pages::schema_page))
         .route("/app/p/{pid}/settings", get(pages::settings_page).post(pages::rename_project))
+        .route("/app/p/{pid}/account", get(pages::account_page).post(pages::create_account_key))
+        .route("/app/p/{pid}/account/{id}/delete", post(pages::delete_account_key))
         .route("/js/incisive.js", get(tracker_js))
         .route("/app/ignore", post(ignore_me))
         .route("/static/style.css", get(style_css))

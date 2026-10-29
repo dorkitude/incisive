@@ -96,7 +96,8 @@ configuration. The main sections:
   `scripts/update_geo.sh` and `deploy/incisive-geo.timer`; its license (CC BY 4.0) requires the
   "IP Geolocation by DB-IP" credit the dashboard shows.
 
-Other commands: `create-project NAME [--owner EMAIL]` prints a new project's keys, `compact` folds
+Other commands: `create-project NAME [--owner EMAIL]` prints a new project's keys,
+`create-account-key NAME --owner EMAIL` prints a new account master key, `compact` folds
 all pending WAL now, `backup` snapshots metadata now.
 
 `deploy/` holds the dev deployment: config, systemd unit, and the Caddyfile that routes the
@@ -104,8 +105,8 @@ share port by host name.
 
 ## API
 
-All routes are under `/1.0/projects/{project_id}`. Send the key in the `Authorization` header (or
-as `api_key`).
+Project routes are under `/1.0/projects/{project_id}`, account routes under `/1.0/account`. Send
+the key in the `Authorization` header (or as `api_key`).
 
 | Route | |
 |---|---|
@@ -117,6 +118,7 @@ as `api_key`).
 | `GET\|POST /queries/{analysis}` | `count`, `count_unique`, `sum`, `average`, `minimum`, `maximum`, `median`, `percentile`, `select_unique`, `extraction`, `funnel`, `multi_analysis` |
 | `/queries/saved[/{name}[/result]]` | saved queries (also under `/queries/cached`) |
 | `/keys[/{key}[/revoke\|/unrevoke]]` | key management |
+| `GET /`, `POST /` | project details; `POST {"name": ...}` renames (master key) |
 | `/datasets` | not supported (501) |
 
 Events carry a reserved metadata object holding `timestamp` (defaults to receipt time),
@@ -139,6 +141,24 @@ Custom keys combine `writes`, `queries`, `saved_queries`, `cached_queries`, `sch
 `datasets`, with options: `writes.autofill` (properties stamped onto every event, overriding the
 client), `queries.filters` (added to every query, for per-customer dashboards), and
 `saved_queries`/`cached_queries` `allowed`/`blocked` name lists.
+
+### Account master keys
+
+Account master keys look like `ak_incisive_` followed by 32 characters. Each belongs to a user,
+is stored hashed and is shown only once, at creation (web app: **Account keys**, or the
+`create-account-key` command). It works as the master key of every project its user belongs to,
+including projects created later, and it can use the account routes:
+
+| Route | |
+|---|---|
+| `GET /1.0/account` | the user's email and projects |
+| `GET /1.0/account/projects` | list projects |
+| `POST /1.0/account/projects` | `{"name": ...}` creates a project; answers with its master, read and write keys |
+| `GET\|POST /1.0/account/keys` | list account keys (no secrets) or create one (`{"name": ...}`) |
+| `DELETE /1.0/account/keys/{id}` | delete an account key |
+
+Project keys never work on account routes, and an account key gets nothing on projects its user
+does not belong to.
 
 ## Web analytics
 

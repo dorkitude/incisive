@@ -324,3 +324,48 @@ async fn ignored_addresses() {
     send(mine.id.clone(), write.clone(), me).await;
     assert_eq!(count(mine.id.clone(), read.clone()).await, json!(2), "unticking counts the member again");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn account_master_keys() {
+    let e = env().await;
+    let (user, _) = e.st.meta.ensure_user("me@example.com").unwrap();
+    let (_, ak) = e.st.meta.create_account_key(&user.id, "ops").unwrap();
+    assert_eq!(e.call("GET", "/1.0/account", None, None, &[]).await.status, 401);
+    assert_eq!(e.call("GET", "/1.0/account", Some(&e.master), None, &[]).await.status, 401, "project master keys are not account keys");
+    let r = e.call("GET", "/1.0/account", Some(&ak), None, &[]).await;
+    assert_eq!(r.status, 200);
+    assert_eq!(r.json()["email"], "me@example.com");
+    assert_eq!(r.json()["projects"], json!([]));
+
+    // Create a project: its keys come back once, and the account key is its master.
+    let r = e.call("POST", "/1.0/account/projects", Some(&ak), Some(json!({"name": "Site"})), &[]).await;
+    assert_eq!(r.status, 201, "{}", String::from_utf8_lossy(&r.body));
+    let p = r.json();
+    let pid = p["id"].as_str().unwrap().to_string();
+    assert_eq!(p["keys"].as_array().unwrap().len(), 3);
+    let write = p["keys"][2]["key"].as_str().unwrap().to_string();
+    let r = e.call("POST", &format!("/1.0/projects/{pid}/keys"), Some(&ak), Some(json!({"name": "blog writes", "permitted": ["writes"]})), &[]).await;
+    assert_eq!(r.status, 201);
+    assert_eq!(e.call("POST", &format!("/1.0/projects/{pid}/events/visits"), Some(&write), Some(json!({"a": 1})), &[]).await.status, 201);
+    let r = e.call("GET", &format!("/1.0/projects/{pid}/queries/count?event_collection=visits"), Some(&ak), None, &[]).await;
+    assert_eq!(r.json()["result"], json!(1));
+    let r = e.call("POST", &format!("/1.0/projects/{pid}"), Some(&ak), Some(json!({"name": "Renamed"})), &[]).await;
+    assert_eq!(r.json()["name"], "Renamed");
+    assert_eq!(e.call("POST", &format!("/1.0/projects/{pid}"), Some(&write), Some(json!({"name": "x"})), &[]).await.status, 401, "write keys cannot rename");
+    assert_eq!(e.call("GET", "/1.0/account/projects", Some(&ak), None, &[]).await.json()[0]["name"], "Renamed");
+
+    // No reach into projects the user isn't a member of.
+    assert_eq!(e.call("GET", &e.url("/keys"), Some(&ak), None, &[]).await.status, 401);
+    assert_eq!(e.call("POST", &e.url(""), Some(&ak), Some(json!({"name": "x"})), &[]).await.status, 401);
+
+    // Account keys manage each other.
+    let r = e.call("POST", "/1.0/account/keys", Some(&ak), Some(json!({"name": "second"})), &[]).await;
+    assert_eq!(r.status, 201);
+    let (id2, ak2) = (r.json()["id"].as_str().unwrap().to_string(), r.json()["key"].as_str().unwrap().to_string());
+    let r = e.call("GET", "/1.0/account/keys", Some(&ak2), None, &[]).await;
+    assert_eq!(r.json().as_array().unwrap().len(), 2);
+    assert!(r.json()[0]["key"].is_null(), "secrets are never listed");
+    assert_eq!(e.call("DELETE", &format!("/1.0/account/keys/{id2}"), Some(&ak), None, &[]).await.status, 204);
+    assert_eq!(e.call("GET", "/1.0/account", Some(&ak2), None, &[]).await.status, 401, "deleted");
+    assert_eq!(e.call("GET", &format!("/1.0/projects/{pid}/keys"), Some(&ak2), None, &[]).await.status, 401);
+}

@@ -76,6 +76,16 @@ CREATE TABLE IF NOT EXISTS ignored_ips (
     PRIMARY KEY (user_id, ip)
 );
 CREATE INDEX IF NOT EXISTS ignored_ips_ip ON ignored_ips(ip);
+CREATE TABLE IF NOT EXISTS account_keys (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    name TEXT NOT NULL,
+    key_hash TEXT NOT NULL UNIQUE,
+    hint TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    last_used_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS account_keys_user ON account_keys(user_id);
 "#;
 
 /// How long an address stays ignored after its user last loaded the app from it.
@@ -128,6 +138,30 @@ impl ApiKey {
             scoped_filters: vec![],
         }
     }
+}
+
+/// An account master key: acts as the master key of every project its user belongs to, and
+/// manages the user's projects and account keys. Only its hash is stored.
+#[derive(Clone, Debug)]
+pub struct AccountKey {
+    pub id: String,
+    pub user_id: String,
+    pub name: String,
+    /// The start of the key, for display.
+    pub hint: String,
+    pub created_at: i64,
+    pub last_used_at: Option<i64>,
+}
+
+fn account_key_from_row(r: &rusqlite::Row) -> rusqlite::Result<AccountKey> {
+    Ok(AccountKey {
+        id: r.get("id")?,
+        user_id: r.get("user_id")?,
+        name: r.get("name")?,
+        hint: r.get("hint")?,
+        created_at: r.get("created_at")?,
+        last_used_at: r.get("last_used_at")?,
+    })
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -454,6 +488,10 @@ impl Meta {
     /// Resolves the credential of an API request against the project in its URL: a project key,
     /// or a legacy scoped key encrypted with one of the project's master keys.
     pub fn authenticate(&self, project_id: &str, credential: &str) -> Result<Option<Access>> {
+        if credential.starts_with(auth::ACCOUNT_KEY_PREFIX) {
+            let Some((user, _)) = self.authenticate_account(credential)? else { return Ok(None) };
+            return Ok(self.is_member(project_id, &user.id)?.then(|| Access::master(project_id, None)));
+        }
         if credential.starts_with(auth::KEY_PREFIX) {
             return Ok(self.key_by_secret(project_id, credential)?.filter(|k| k.is_active).map(|k| k.access()));
         }
@@ -483,6 +521,53 @@ impl Meta {
 
     pub fn touch_key(&self, id: &str) {
         let _ = self.conn.lock().execute("UPDATE api_keys SET last_used_at = ?1 WHERE id = ?2 AND (last_used_at IS NULL OR last_used_at < ?1 - 60)", params![now(), id]);
+    }
+
+    // ---- account keys ----
+
+    /// Creates an account master key for a user and returns it with its secret, which is not
+    /// stored and so is only available now.
+    pub fn create_account_key(&self, user_id: &str, name: &str) -> Result<(AccountKey, String)> {
+        let secret = auth::generate_account_key();
+        let k = AccountKey {
+            id: new_id(),
+            user_id: user_id.to_string(),
+            name: name.to_string(),
+            hint: format!("{}…", &secret[..auth::ACCOUNT_KEY_PREFIX.len() + 4]),
+            created_at: now(),
+            last_used_at: None,
+        };
+        self.conn.lock().execute(
+            "INSERT INTO account_keys (id, user_id, name, key_hash, hint, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![k.id, k.user_id, k.name, auth::sha256_hex(&secret), k.hint, k.created_at],
+        )?;
+        Ok((k, secret))
+    }
+
+    pub fn account_keys(&self, user_id: &str) -> Result<Vec<AccountKey>> {
+        let c = self.conn.lock();
+        let mut st = c.prepare("SELECT * FROM account_keys WHERE user_id = ?1 ORDER BY created_at, rowid")?;
+        let rows = st.query_map([user_id], account_key_from_row)?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    pub fn delete_account_key(&self, user_id: &str, id: &str) -> Result<bool> {
+        Ok(self.conn.lock().execute("DELETE FROM account_keys WHERE user_id = ?1 AND id = ?2", params![user_id, id])? > 0)
+    }
+
+    /// Resolves an account master key to its user, and records that it was used.
+    pub fn authenticate_account(&self, credential: &str) -> Result<Option<(User, AccountKey)>> {
+        if !credential.starts_with(auth::ACCOUNT_KEY_PREFIX) {
+            return Ok(None);
+        }
+        let k = {
+            let c = self.conn.lock();
+            c.query_row("SELECT * FROM account_keys WHERE key_hash = ?1", [auth::sha256_hex(credential)], account_key_from_row).optional()?
+        };
+        let Some(k) = k else { return Ok(None) };
+        let Some(u) = self.user(&k.user_id)? else { return Ok(None) };
+        let _ = self.conn.lock().execute("UPDATE account_keys SET last_used_at = ?1 WHERE id = ?2 AND (last_used_at IS NULL OR last_used_at < ?1 - 60)", params![now(), k.id]);
+        Ok(Some((u, k)))
     }
 
     // ---- saved queries ----
@@ -613,6 +698,29 @@ mod tests {
         assert!(Meta::restore_if_missing(&p2, &snap).unwrap());
         let m2 = Meta::open(&p2).unwrap();
         assert_eq!(m2.projects_for(&u.id).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn account_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        let m = Meta::open(&dir.path().join("m.sqlite")).unwrap();
+        let (u, _) = m.ensure_user("a@example.com").unwrap();
+        let (other, _) = m.ensure_user("b@example.com").unwrap();
+        let (mine, _) = m.create_project(Some(&u.id), "mine").unwrap();
+        let (theirs, _) = m.create_project(Some(&other.id), "theirs").unwrap();
+        let (k, secret) = m.create_account_key(&u.id, "cockpit").unwrap();
+        assert!(secret.starts_with(auth::ACCOUNT_KEY_PREFIX));
+        let (who, _) = m.authenticate_account(&secret).unwrap().unwrap();
+        assert_eq!(who.id, u.id);
+        assert!(m.authenticate(&mine.id, &secret).unwrap().unwrap().master, "master on the user's projects");
+        assert!(m.authenticate(&theirs.id, &secret).unwrap().is_none(), "nothing on other users' projects");
+        let (later, _) = m.create_project(Some(&u.id), "later").unwrap();
+        assert!(m.authenticate(&later.id, &secret).unwrap().unwrap().master, "covers projects made after the key");
+        assert!(m.account_keys(&u.id).unwrap()[0].last_used_at.is_some());
+        assert!(!m.delete_account_key(&other.id, &k.id).unwrap(), "only the owner deletes");
+        assert!(m.delete_account_key(&u.id, &k.id).unwrap());
+        assert!(m.authenticate(&mine.id, &secret).unwrap().is_none(), "deleted");
+        assert!(m.authenticate_account(&secret).unwrap().is_none());
     }
 
     #[test]

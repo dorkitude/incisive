@@ -1,5 +1,6 @@
-//! The versioned HTTP API: event writes, queries, schema, deletes and keys.
+//! The versioned HTTP API: event writes, queries, schema, deletes, keys and accounts.
 
+mod account;
 mod keys;
 mod queries;
 
@@ -167,7 +168,7 @@ impl Client {
 }
 
 /// The credential: the Authorization header (preferred) or the `api_key` parameter.
-fn credential(headers: &HeaderMap, params: &HashMap<String, String>) -> Option<String> {
+pub(crate) fn credential(headers: &HeaderMap, params: &HashMap<String, String>) -> Option<String> {
     let h = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok()).map(|s| s.trim().trim_start_matches("Bearer ").trim().to_string()).filter(|s| !s.is_empty());
     h.or_else(|| params.get("api_key").cloned().filter(|s| !s.is_empty()))
 }
@@ -199,6 +200,7 @@ fn op_name(op: Op) -> &'static str {
         Op::Datasets => "use datasets",
         Op::Delete => "delete events (master key required)",
         Op::Keys => "manage keys (master key required)",
+        Op::Settings => "change project settings (master key required)",
     }
 }
 
@@ -215,7 +217,11 @@ pub fn iso(secs: i64) -> String {
 pub fn router(st: St) -> Router {
     let p = "/1.0/projects/{pid}";
     let api = Router::new()
-        .route(p, get(project_info))
+        .route("/1.0/account", get(account::info))
+        .route("/1.0/account/projects", get(account::list_projects).post(account::create_project))
+        .route("/1.0/account/keys", get(account::list_keys).post(account::create_key))
+        .route("/1.0/account/keys/{id}", axum::routing::delete(account::delete_key))
+        .route(p, get(project_info).post(update_project))
         .route(&format!("{p}/events"), get(schema_all).post(write_batch))
         .route(&format!("{p}/events/{{coll}}"), get(get_collection).post(write_one).delete(delete_events))
         .route(&format!("{p}/events/{{coll}}/properties/{{prop}}"), get(property_info).delete(not_supported))
@@ -272,6 +278,17 @@ async fn project_info(State(st): State<St>, Path(pid): Path<String>, Query(param
     let p = st.meta.project(&pid)?.ok_or_else(|| err(StatusCode::NOT_FOUND, "ResourceNotFoundError", "project not found"))?;
     let base = format!("{}/1.0/projects/{}", st.cfg.server.public_url.trim_end_matches('/'), p.id);
     Ok(Json(json!({"id": p.id, "name": p.name, "events_url": format!("{base}/events"), "queries_url": format!("{base}/queries")})))
+}
+
+/// Renames a project: `{"name": "..."}`.
+async fn update_project(State(st): State<St>, Path(pid): Path<String>, Query(params): Query<HashMap<String, String>>, c: Client, body: Bytes) -> ApiResult<Json<Value>> {
+    authorize(&st, &pid, &c.headers, &params, Op::Settings)?;
+    let name = match parse_body(&body)?.get("name") {
+        Some(Value::String(s)) if !s.trim().is_empty() => s.trim().chars().take(80).collect::<String>(),
+        _ => return Err(err(StatusCode::BAD_REQUEST, "InvalidParameterError", "name must be a non-empty string")),
+    };
+    st.meta.rename_project(&pid, &name)?;
+    project_info(State(st), Path(pid), Query(params), c).await
 }
 
 // ---- writes ----

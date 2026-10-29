@@ -12,16 +12,29 @@ pub const KEY_PREFIX: &str = "sk_incisive_";
 const KEY_RANDOM_LEN: usize = 20;
 const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
+/// Every account master key starts with this prefix.
+pub const ACCOUNT_KEY_PREFIX: &str = "ak_incisive_";
+/// Random characters after the account key prefix.
+const ACCOUNT_KEY_RANDOM_LEN: usize = 32;
+
 /// The permissions a custom key can be granted.
 pub const PERMISSIONS: [&str; 6] = ["writes", "queries", "saved_queries", "cached_queries", "datasets", "schema"];
 
 /// Generates a new random API key.
 pub fn generate_key() -> String {
-    let mut s = String::from(KEY_PREFIX);
-    let bytes: [u8; KEY_RANDOM_LEN] = rand::random();
-    for b in bytes {
+    random_key(KEY_PREFIX, KEY_RANDOM_LEN)
+}
+
+/// Generates a new random account master key.
+pub fn generate_account_key() -> String {
+    random_key(ACCOUNT_KEY_PREFIX, ACCOUNT_KEY_RANDOM_LEN)
+}
+
+fn random_key(prefix: &str, len: usize) -> String {
+    let mut s = String::from(prefix);
+    for _ in 0..len {
         // 248 = 4 * 62, so rejection keeps the distribution uniform.
-        let mut b = b;
+        let mut b: u8 = rand::random();
         while b >= 248 {
             b = rand::random();
         }
@@ -52,6 +65,8 @@ pub enum Op {
     Datasets,
     Delete,
     Keys,
+    /// Rename the project.
+    Settings,
 }
 
 /// Options of a custom key, in the wire format of the keys API.
@@ -138,7 +153,7 @@ impl Access {
             Op::Schema => has("schema") || has("queries"),
             Op::SavedRead => has("saved_queries") || has("cached_queries"),
             Op::Datasets => has("datasets"),
-            Op::SavedManage | Op::Delete | Op::Keys => false,
+            Op::SavedManage | Op::Delete | Op::Keys | Op::Settings => false,
         }
     }
 
@@ -271,6 +286,9 @@ mod tests {
         assert!(k.starts_with(KEY_PREFIX));
         assert_eq!(k.len(), 32);
         assert_ne!(k, generate_key());
+        let a = generate_account_key();
+        assert!(a.starts_with(ACCOUNT_KEY_PREFIX) && !a.starts_with(KEY_PREFIX));
+        assert_eq!(a.len(), ACCOUNT_KEY_PREFIX.len() + 32);
     }
 
     #[test]

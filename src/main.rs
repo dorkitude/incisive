@@ -31,6 +31,13 @@ enum Cmd {
         #[arg(long)]
         owner: Option<String>,
     },
+    /// Create an account master key for a user and print it.
+    CreateAccountKey {
+        name: String,
+        /// The user's email (created if needed).
+        #[arg(long)]
+        owner: String,
+    },
     /// Compact all pending WAL objects into segments now.
     Compact,
     /// Back up the metadata database to object storage now.
@@ -61,6 +68,14 @@ async fn main() -> Result<()> {
             for (k, secret) in keys {
                 println!("{}: {secret}", k.name);
             }
+            meta::backup_once(&meta, &engine, &mut None).await?;
+            Ok(())
+        }
+        Cmd::CreateAccountKey { name, owner } => {
+            let (engine, meta) = open(&cfg).await?;
+            let (user, _) = meta.ensure_user(&owner.to_lowercase())?;
+            let (_, secret) = meta.create_account_key(&user.id, &name)?;
+            println!("{secret}");
             meta::backup_once(&meta, &engine, &mut None).await?;
             Ok(())
         }
