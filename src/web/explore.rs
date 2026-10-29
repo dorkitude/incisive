@@ -2,14 +2,15 @@
 //! a query builder, a live event stream, a collection and property profiler, a pivot
 //! heatmap, and a funnel builder. They share the helpers at the top of this file.
 
-use super::pages::{fmt_compact, fmt_int, layout, line_chart, page_head, snippet, Tab, TZ_JS};
-use super::{cookie, internal, WebUser, TZ_COOKIE};
+use super::pages::{fmt_compact, fmt_int, layout, line_chart, page_head, snippet, Tab};
+use super::{internal, WebUser};
 use crate::api::St;
 use crate::meta::Project;
 use crate::query::exec::Executor;
+use crate::query::timeframe::Zone;
 use crate::standard;
 use axum::extract::{Path, State};
-use axum::http::{HeaderMap, Uri};
+use axum::http::Uri;
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::Form;
 use futures::stream::{self, StreamExt};
@@ -75,10 +76,6 @@ fn range(ps: &[(String, String)]) -> (&'static str, &'static str, &'static str) 
     let k = get(ps, "range").unwrap_or("7d");
     let r = RANGES.iter().find(|r| r.0 == k).unwrap_or(&RANGES[1]);
     (r.0, r.2, r.3)
-}
-
-fn tz(headers: &HeaderMap) -> String {
-    cookie(headers, TZ_COOKIE).unwrap_or_else(|| "UTC".into())
 }
 
 fn needs_target(a: &str) -> bool {
@@ -187,7 +184,7 @@ fn props_of(schema: &Schema, coll: Option<&str>) -> BTreeMap<String, String> {
 }
 
 fn page(st: &St, u: &WebUser, p: &Project, tab: Tab, title: &str, body: Markup) -> Response {
-    let body = html! { (body) script { (PreEscaped(EXPLORE_JS)) } script { (PreEscaped(TZ_JS)) } };
+    let body = html! { (body) script { (PreEscaped(EXPLORE_JS)) } };
     Html(layout(st, u, p, tab, title, body)).into_response()
 }
 
@@ -254,10 +251,10 @@ fn tick_label(v: &Value, interval: &str) -> String {
 }
 
 /// Renders any analysis result in the form that suits its shape.
-fn render_result(result: &Value, analysis: &str, label: &str, group: Option<&str>, interval: &str) -> Markup {
+fn render_result(result: &Value, analysis: &str, label: &str, group: Option<&str>, interval: &str, zone: Zone) -> Markup {
     match result {
         Value::Array(items) if items.is_empty() => html! { div.card { div.empty { "No matching events in this timeframe." } } },
-        Value::Array(items) if analysis == "extraction" => event_table(items),
+        Value::Array(items) if analysis == "extraction" => event_table(items, zone),
         Value::Array(items) if analysis == "select_unique" => html! {
             div.card {
                 h2 { (fmt_int(items.len() as u64)) " unique values" }
@@ -378,28 +375,28 @@ fn leaf_paths(v: &Value, prefix: &str, out: &mut Vec<(String, String)>) {
     }
 }
 
-fn event_time(ev: &Value) -> String {
-    ev.pointer(&format!("/{}/timestamp", crate::event::RESERVED)).and_then(Value::as_str).and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok()).map(|t| t.format("%b %-d %H:%M:%S").to_string()).unwrap_or_default()
+fn event_time(ev: &Value, zone: Zone) -> String {
+    ev.pointer(&format!("/{}/timestamp", crate::event::RESERVED)).and_then(Value::as_str).and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok()).map(|t| zone.strftime(t.to_utc(), "%b %-d %H:%M:%S")).unwrap_or_default()
 }
 
-fn event_table(items: &[Value]) -> Markup {
+fn event_table(items: &[Value], zone: Zone) -> Markup {
     html! {
         div.card style="padding:8px 12px" {
             div.feed {
                 @for (i, ev) in items.iter().rev().enumerate() {
-                    (event_row(ev, None, &format!("ev{i}")))
+                    (event_row(ev, None, &format!("ev{i}"), zone))
                 }
             }
         }
     }
 }
 
-fn event_row(ev: &Value, coll: Option<&str>, id: &str) -> Markup {
+fn event_row(ev: &Value, coll: Option<&str>, id: &str, zone: Zone) -> Markup {
     let pretty = serde_json::to_string_pretty(ev).unwrap_or_default();
     html! {
         details.ev {
             summary {
-                span.t { (event_time(ev)) }
+                span.t { (event_time(ev, zone)) }
                 @if let Some(c) = coll { span.pill.on { (c) } }
                 span.s { (summary(ev)) }
             }
@@ -449,14 +446,14 @@ fn builder_query(ps: &[(String, String)], schema: &Schema) -> (String, Option<St
     (analysis, coll, m, group, interval)
 }
 
-pub async fn builder(State(st): State<St>, u: WebUser, Path(pid): Path<String>, uri: Uri, headers: HeaderMap) -> Response {
+pub async fn builder(State(st): State<St>, u: WebUser, Path(pid): Path<String>, uri: Uri) -> Response {
     let p = match u.project(&st, &pid) {
         Ok(p) => p,
         Err(r) => return r,
     };
     let schema = st.engine.schema(&pid).await.unwrap_or_default();
     let ps = params(&uri);
-    let tz = tz(&headers);
+    let tz = u.tz.clone();
     let (analysis, coll, m, group, interval) = builder_query(&ps, &schema);
     let props = props_of(&schema, coll.as_deref());
     let (rk, _, _) = range(&ps);
@@ -531,7 +528,7 @@ pub async fn builder(State(st): State<St>, u: WebUser, Path(pid): Path<String>, 
             }
             div.stack {
                 @match &result {
-                    Some(Ok(r)) => (render_result(r, &analysis, &label, group.as_deref(), &interval)),
+                    Some(Ok(r)) => (render_result(r, &analysis, &label, group.as_deref(), &interval, u.zone)),
                     Some(Err(e)) => div.notice.err { (e) },
                     None => {}
                 }
@@ -580,7 +577,7 @@ fn body_json_compact(m: &Map<String, Value>, tz: &str) -> Value {
     Value::Object(b)
 }
 
-pub async fn save_query(State(st): State<St>, u: WebUser, Path(pid): Path<String>, headers: HeaderMap, Form(form): Form<HashMap<String, String>>) -> Response {
+pub async fn save_query(State(st): State<St>, u: WebUser, Path(pid): Path<String>, Form(form): Form<HashMap<String, String>>) -> Response {
     if let Err(r) = u.project(&st, &pid) {
         return r;
     }
@@ -599,7 +596,7 @@ pub async fn save_query(State(st): State<St>, u: WebUser, Path(pid): Path<String
     let schema = st.engine.schema(&pid).await.unwrap_or_default();
     let ps: Vec<(String, String)> = url::form_urlencoded::parse(qs.as_bytes()).into_owned().collect();
     let (analysis, _, mut m, _, _) = builder_query(&ps, &schema);
-    m.insert("timezone".into(), json!(tz(&headers)));
+    m.insert("timezone".into(), json!(u.tz));
     let Ok(q) = crate::query::parse(&analysis, &m) else { return Redirect::to(&back).into_response() };
     let body = json!({"query": q.echo(), "metadata": {"explorer": qs}, "refresh_rate": 0});
     if let Err(e) = st.meta.put_saved_query(&pid, &name, &body) {
@@ -610,14 +607,14 @@ pub async fn save_query(State(st): State<St>, u: WebUser, Path(pid): Path<String
 
 // ---- 2. Event stream ----
 
-pub async fn stream_page(State(st): State<St>, u: WebUser, Path(pid): Path<String>, uri: Uri, headers: HeaderMap) -> Response {
+pub async fn stream_page(State(st): State<St>, u: WebUser, Path(pid): Path<String>, uri: Uri) -> Response {
     let p = match u.project(&st, &pid) {
         Ok(p) => p,
         Err(r) => return r,
     };
     let schema = st.engine.schema(&pid).await.unwrap_or_default();
     let ps = params(&uri);
-    let tz = tz(&headers);
+    let tz = u.tz.clone();
     let only = get(&ps, "collection").filter(|c| schema.contains_key(*c)).map(String::from);
     let live = get(&ps, "live") == Some("1");
     let colls: Vec<String> = match &only {
@@ -670,7 +667,7 @@ pub async fn stream_page(State(st): State<St>, u: WebUser, Path(pid): Path<Strin
                 @if events.is_empty() { div.empty { "No events in the last 30 days." } }
                 div.feed {
                     @for (i, (_, c, ev)) in events.iter().enumerate() {
-                        (event_row(ev, only.is_none().then_some(c.as_str()), &format!("ev{i}")))
+                        (event_row(ev, only.is_none().then_some(c.as_str()), &format!("ev{i}"), u.zone))
                     }
                 }
             }
@@ -702,14 +699,14 @@ fn sparkline(vals: &[f64]) -> Markup {
     }
 }
 
-pub async fn collections_page(State(st): State<St>, u: WebUser, Path(pid): Path<String>, uri: Uri, headers: HeaderMap) -> Response {
+pub async fn collections_page(State(st): State<St>, u: WebUser, Path(pid): Path<String>, uri: Uri) -> Response {
     let p = match u.project(&st, &pid) {
         Ok(p) => p,
         Err(r) => return r,
     };
     let schema = st.engine.schema(&pid).await.unwrap_or_default();
     let ps = params(&uri);
-    let tz = tz(&headers);
+    let tz = u.tz.clone();
     if let Some(c) = get(&ps, "c").filter(|c| schema.contains_key(*c)) {
         return profile(&st, &u, &p, &schema, c, &tz).await;
     }
@@ -848,14 +845,14 @@ async fn profile(st: &St, u: &WebUser, p: &Project, schema: &Schema, coll: &str,
 
 const PIVOT_METRICS: [(&str, &str); 4] = [("count", "Count of events"), ("count_unique", "Unique values of…"), ("sum", "Sum of…"), ("average", "Average of…")];
 
-pub async fn pivot_page(State(st): State<St>, u: WebUser, Path(pid): Path<String>, uri: Uri, headers: HeaderMap) -> Response {
+pub async fn pivot_page(State(st): State<St>, u: WebUser, Path(pid): Path<String>, uri: Uri) -> Response {
     let p = match u.project(&st, &pid) {
         Ok(p) => p,
         Err(r) => return r,
     };
     let schema = st.engine.schema(&pid).await.unwrap_or_default();
     let ps = params(&uri);
-    let tz = tz(&headers);
+    let tz = u.tz.clone();
     let coll = get(&ps, "collection").filter(|c| schema.contains_key(*c)).map(String::from).or_else(|| {
         schema.contains_key(standard::PAGEVIEW).then(|| standard::PAGEVIEW.to_string()).or(schema.keys().next().cloned())
     });
@@ -974,14 +971,14 @@ fn pivot_table(items: &[Value], rp: &str, cp: &str, metric: &str) -> Markup {
 
 // ---- 5. Funnels ----
 
-pub async fn funnels_page(State(st): State<St>, u: WebUser, Path(pid): Path<String>, uri: Uri, headers: HeaderMap) -> Response {
+pub async fn funnels_page(State(st): State<St>, u: WebUser, Path(pid): Path<String>, uri: Uri) -> Response {
     let p = match u.project(&st, &pid) {
         Ok(p) => p,
         Err(r) => return r,
     };
     let schema = st.engine.schema(&pid).await.unwrap_or_default();
     let ps = params(&uri);
-    let tz = tz(&headers);
+    let tz = u.tz.clone();
     let (rk, tf, _) = range(&ps);
     let actor = get(&ps, "actor").unwrap_or("visitor.id").to_string();
     // (collection, property, operator, value)

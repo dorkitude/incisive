@@ -8,6 +8,7 @@ mod pages;
 use crate::api::St;
 use crate::auth;
 use crate::meta::User;
+use crate::query::timeframe::{parse_timezone, Zone};
 use axum::extract::{FromRequestParts, Path, State};
 use axum::http::{header, request::Parts, HeaderMap, StatusCode};
 use axum::response::{Html, IntoResponse, Redirect, Response};
@@ -104,6 +105,16 @@ pub struct WebUser {
     pub csrf: String,
     /// The client address, for "Ignore my traffic".
     pub ip: Option<String>,
+    /// The browser's timezone (from the `incisive_tz` cookie), or UTC until it is known.
+    pub tz: String,
+    pub zone: Zone,
+}
+
+/// Reads the timezone cookie, falling back to UTC when it is missing or not a zone we know.
+fn browser_zone(headers: &HeaderMap) -> (String, Zone) {
+    cookie(headers, TZ_COOKIE)
+        .and_then(|name| parse_timezone(Some(&serde_json::Value::String(name.clone()))).ok().map(|z| (name, z)))
+        .unwrap_or_else(|| ("UTC".into(), Zone::utc()))
 }
 
 pub fn csrf_for(session: &str) -> String {
@@ -117,7 +128,10 @@ impl FromRequestParts<St> for WebUser {
         let login = || Redirect::to("/login").into_response();
         let Some(token) = cookie(&parts.headers, SESSION_COOKIE) else { return Err(login()) };
         match st.meta.session_user(&token) {
-            Ok(Some(user)) => Ok(WebUser { user, csrf: csrf_for(&token), ip: crate::api::client_of(parts, st.cfg.server.trust_forwarded_for).ip }),
+            Ok(Some(user)) => {
+                let (tz, zone) = browser_zone(&parts.headers);
+                Ok(WebUser { user, csrf: csrf_for(&token), ip: crate::api::client_of(parts, st.cfg.server.trust_forwarded_for).ip, tz, zone })
+            }
             Ok(None) => Err(login()),
             Err(e) => Err(crate::api::ApiError::from(e).into_response()),
         }
@@ -264,5 +278,22 @@ async fn create_project(State(st): State<St>, u: WebUser, Form(form): Form<HashM
     match st.meta.create_project(Some(&u.user.id), &name.chars().take(80).collect::<String>()) {
         Ok((p, _)) => Redirect::to(&format!("/app/p/{}/install", p.id)).into_response(),
         Err(e) => internal(e),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn browser_zone_falls_back_to_utc() {
+        let with = |c: &str| {
+            let mut h = HeaderMap::new();
+            h.insert(header::COOKIE, c.parse().unwrap());
+            browser_zone(&h).0
+        };
+        assert_eq!(with("incisive_tz=America%2FChicago"), "America/Chicago");
+        assert_eq!(with("incisive_tz=Mars%2FOlympus"), "UTC");
+        assert_eq!(browser_zone(&HeaderMap::new()).0, "UTC");
     }
 }

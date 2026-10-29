@@ -52,6 +52,11 @@ impl Zone {
             Zone::Fixed(o) => t.with_timezone(&o).to_rfc3339_opts(SecondsFormat::Millis, true),
         }
     }
+
+    /// Formats an instant as wall-clock time in this zone with a strftime pattern.
+    pub fn strftime(self, t: DateTime<Utc>, fmt: &str) -> String {
+        self.to_local(t).format(fmt).to_string()
+    }
 }
 
 fn offset_zone(secs: i64) -> Result<Zone, String> {
@@ -238,6 +243,13 @@ mod tests {
 
     fn fmt(r: Range, z: Zone) -> (String, String) {
         (z.format(r.start), z.format(r.end))
+    }
+
+    #[test]
+    fn strftime_uses_wall_clock_time() {
+        let t = Utc.with_ymd_and_hms(2026, 3, 11, 3, 30, 0).unwrap();
+        assert_eq!(Zone::Named("America/Los_Angeles".parse().unwrap()).strftime(t, "%b %-d, %H:%M"), "Mar 10, 20:30");
+        assert_eq!(Zone::utc().strftime(t, "%b %-d, %H:%M"), "Mar 11, 03:30");
     }
 
     #[test]

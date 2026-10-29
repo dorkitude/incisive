@@ -1,14 +1,13 @@
 //! Page handlers and HTML templates.
 
 use super::dashboard::{self, Report, Row, Totals};
-use super::{cookie, internal, WebUser, PROJECT_COOKIE, TZ_COOKIE};
+use super::{internal, WebUser, PROJECT_COOKIE};
 use crate::api::St;
 use crate::auth::{self, KeyOptions, NamedOptions, QueriesOptions, WritesOptions};
 use crate::meta::{AccountKey, ApiKey, Project};
-use crate::query::timeframe::{parse_timeframe, parse_timezone, Zone};
+use crate::query::timeframe::{parse_timeframe, Zone};
 use crate::standard;
 use axum::extract::{Path, Query, State};
-use axum::http::HeaderMap;
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::Form;
 use maud::{html, Markup, PreEscaped, DOCTYPE};
@@ -23,11 +22,13 @@ static STYLE_VERSION: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| 
     hex::encode(&Sha256::digest(super::STYLE_CSS.as_bytes())[..6])
 });
 
-fn head(title: &str) -> Markup {
+/// `tz` is the zone the page's times were rendered in, so the browser can reload when its own differs.
+fn head(title: &str, tz: Option<&str>) -> Markup {
     html! {
         (DOCTYPE)
-        html lang="en" {
+        html lang="en" data-tz=[tz] {
             head {
+                script { (PreEscaped(TZ_JS)) }
                 meta charset="utf-8";
                 meta name="viewport" content="width=device-width, initial-scale=1";
                 meta name="theme-color" content="#16161e";
@@ -132,7 +133,7 @@ pub(super) fn layout(st: &St, u: &WebUser, p: &Project, tab: Tab, title: &str, b
     let base = format!("/app/p/{}", p.id);
     let t = |t: Tab, label: &str, href: String| html! { a.on[tab == t] href=(href) { (t.icon()) (label) } };
     html! {
-        (head(title))
+        (head(title, Some(&u.tz)))
         body {
             div.shell {
                 aside.side {
@@ -193,7 +194,7 @@ pub(super) fn layout(st: &St, u: &WebUser, p: &Project, tab: Tab, title: &str, b
 
 pub fn message_page(title: &str, msg: &str) -> String {
     html! {
-        (head(title))
+        (head(title, None))
         body { div.center { div.login { div.card { h1 { (title) } p.sub { (msg) } a href="/app" { "← Back to the app" } } } } }
     }
     .into_string()
@@ -203,7 +204,7 @@ pub fn message_page(title: &str, msg: &str) -> String {
 
 pub fn login_page(error: Option<&str>) -> String {
     html! {
-        (head("Sign in"))
+        (head("Sign in", None))
         body {
             div.center {
                 div.login {
@@ -229,7 +230,7 @@ pub fn login_page(error: Option<&str>) -> String {
 
 pub fn code_page(email: &str, error: Option<&str>) -> String {
     html! {
-        (head("Enter your code"))
+        (head("Enter your code", None))
         body { div.center { div.login {
             span.brand { img src="/static/brand/incisive-logo-dark.svg" alt="Incisive"; }
             div.card {
@@ -405,6 +406,11 @@ pub(super) fn nice_max(v: f64) -> f64 {
     10.0 * mag
 }
 
+/// Formats Unix seconds as wall-clock time in the viewer's zone.
+fn local_time(zone: Zone, secs: Option<i64>, fmt: &str) -> Option<String> {
+    secs.and_then(|t| chrono::DateTime::from_timestamp(t, 0)).map(|t| zone.strftime(t, fmt))
+}
+
 pub(super) fn local_label(zone: Zone, t: chrono::DateTime<chrono::Utc>, hourly: bool) -> String {
     let s = zone.format(t);
     match chrono::DateTime::parse_from_rfc3339(&s) {
@@ -496,10 +502,13 @@ c.addEventListener('touchstart',function(e){show(e.touches[0]);},{passive:true})
 });
 })();"#;
 
-/// Sets the browser's timezone in a cookie and reloads once when it changed.
-pub(super) const TZ_JS: &str = r#"(function(){try{var tz=Intl.DateTimeFormat().resolvedOptions().timeZone;
-var m=document.cookie.match(/(?:^|; )incisive_tz=([^;]*)/); var cur=m?decodeURIComponent(m[1]):'';
-if(tz&&tz!==cur){document.cookie='incisive_tz='+encodeURIComponent(tz)+'; path=/; max-age=31536000; SameSite=Lax'; if(!sessionStorage.getItem('tzr')){sessionStorage.setItem('tzr','1');location.reload();}}}catch(e){}})();"#;
+/// Keeps the browser's timezone in a cookie, on every page (sign-in too, so the first app page
+/// already renders in it). When the page was rendered in another zone, reloads once per zone.
+const TZ_JS: &str = r#"(function(){try{var tz=Intl.DateTimeFormat().resolvedOptions().timeZone; if(!tz)return;
+var m=document.cookie.match(/(?:^|; )incisive_tz=([^;]*)/);
+if(!m||decodeURIComponent(m[1])!==tz)document.cookie='incisive_tz='+encodeURIComponent(tz)+'; path=/; max-age=31536000; SameSite=Lax';
+var r=document.documentElement.getAttribute('data-tz');
+if(r&&r!==tz&&sessionStorage.getItem('tzr')!==tz){sessionStorage.setItem('tzr',tz);location.reload();}}catch(e){}})();"#;
 
 pub(super) fn bars(title: &str, col: &str, unit: &str, rows: &[Row]) -> Markup {
     let max = rows.iter().map(|r| r.count).max().unwrap_or(1).max(1);
@@ -524,7 +533,7 @@ pub(super) fn bars(title: &str, col: &str, unit: &str, rows: &[Row]) -> Markup {
     }
 }
 
-pub async fn dashboard(State(st): State<St>, u: WebUser, Path(pid): Path<String>, Query(q): Query<HashMap<String, String>>, headers: HeaderMap) -> Response {
+pub async fn dashboard(State(st): State<St>, u: WebUser, Path(pid): Path<String>, Query(q): Query<HashMap<String, String>>) -> Response {
     let p = match u.project(&st, &pid) {
         Ok(p) => p,
         Err(r) => return r,
@@ -538,8 +547,7 @@ pub async fn dashboard(State(st): State<St>, u: WebUser, Path(pid): Path<String>
         _ => ("this_7_days", "daily", false),
     };
     let metric = Metric::parse(q.get("metric").map(String::as_str).unwrap_or("visitors"));
-    let tz_name = cookie(&headers, TZ_COOKIE).unwrap_or_else(|| "UTC".into());
-    let zone = parse_timezone(Some(&Value::String(tz_name.clone()))).unwrap_or(Zone::utc());
+    let (tz_name, zone) = (u.tz.clone(), u.zone);
     let now = chrono::Utc::now();
     let range = match parse_timeframe(Some(&Value::String(tf.into())), zone, now) {
         Ok(Some(r)) => r,
@@ -612,7 +620,6 @@ pub async fn dashboard(State(st): State<St>, u: WebUser, Path(pid): Path<String>
             (bars("Form submissions", "Page", "Submissions", &interactions.forms))
             (bars("Custom events", "Collection", "Events", &custom))
         }
-        script { (PreEscaped(TZ_JS)) }
     };
     let remember = format!("{PROJECT_COOKIE}={pid}; Path=/; HttpOnly; SameSite=Lax; Max-Age=34560000{}", if st.cfg.server.secure_cookies { "; Secure" } else { "" });
     ([(axum::http::header::SET_COOKIE, remember)], Html(layout(&st, &u, &p, Tab::Dashboard, "Web Analytics", body))).into_response()
@@ -744,7 +751,7 @@ fn keys_body(st: &St, u: &WebUser, p: &Project, created: Option<(&ApiKey, &str)>
                                 td { (perm_pills(k)) @if k.options != KeyOptions::default() { details { summary { "options" } pre { (serde_json::to_string_pretty(&k.options).unwrap_or_default()) } } } }
                                 td { @if k.is_active { span.pill.ok { "active" } } @else { span.pill.off { "revoked" } } }
                                 td.muted style="white-space:nowrap" title=(k.last_used_at.map(crate::api::iso).unwrap_or_default()) {
-                                    (k.last_used_at.and_then(|t| chrono::DateTime::from_timestamp(t, 0)).map(|t| t.format("%b %-d, %H:%M UTC").to_string()).unwrap_or_else(|| "never".into()))
+                                    (local_time(u.zone, k.last_used_at, "%b %-d, %H:%M").unwrap_or_else(|| "never".into()))
                                 }
                                 td style="white-space:nowrap" {
                                     @if !k.master {
@@ -1137,9 +1144,9 @@ fn account_body(st: &St, u: &WebUser, p: &Project, created: Option<(&AccountKey,
                                 tr {
                                     td style="white-space:nowrap" { b { (k.name) } }
                                     td.mono { (k.hint) }
-                                    td.muted style="white-space:nowrap" { (chrono::DateTime::from_timestamp(k.created_at, 0).map(|t| t.format("%b %-d, %Y").to_string()).unwrap_or_default()) }
+                                    td.muted style="white-space:nowrap" { (local_time(u.zone, Some(k.created_at), "%b %-d, %Y").unwrap_or_default()) }
                                     td.muted style="white-space:nowrap" {
-                                        (k.last_used_at.and_then(|t| chrono::DateTime::from_timestamp(t, 0)).map(|t| t.format("%b %-d, %H:%M UTC").to_string()).unwrap_or_else(|| "never".into()))
+                                        (local_time(u.zone, k.last_used_at, "%b %-d, %H:%M").unwrap_or_else(|| "never".into()))
                                     }
                                     td {
                                         form.inline method="post" action=(format!("{base}/{}/delete", k.id)) {
