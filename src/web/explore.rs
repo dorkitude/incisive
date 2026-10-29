@@ -56,6 +56,9 @@ const OPS: [(&str, &str); 10] = [
     ("exists", "exists (true/false)"),
 ];
 
+/// Properties under the reserved metadata object, hidden from property pickers.
+const RESERVED_PREFIX: &str = "incisive.";
+
 fn params(uri: &Uri) -> Vec<(String, String)> {
     url::form_urlencoded::parse(uri.query().unwrap_or("").as_bytes()).into_owned().collect()
 }
@@ -180,7 +183,7 @@ fn range_select(selected: &str) -> Markup {
 }
 
 fn props_of(schema: &Schema, coll: Option<&str>) -> BTreeMap<String, String> {
-    coll.and_then(|c| schema.get(c)).cloned().unwrap_or_default().into_iter().filter(|(p, _)| !p.starts_with("keen.")).collect()
+    coll.and_then(|c| schema.get(c)).cloned().unwrap_or_default().into_iter().filter(|(p, _)| !p.starts_with(RESERVED_PREFIX)).collect()
 }
 
 fn page(st: &St, u: &WebUser, p: &Project, tab: Tab, title: &str, body: Markup) -> Response {
@@ -357,7 +360,7 @@ fn summary(ev: &Value) -> String {
     if parts.is_empty() {
         let mut leaves = vec![];
         leaf_paths(ev, "", &mut leaves);
-        parts = leaves.into_iter().filter(|(p, _)| !p.starts_with("keen.")).take(4).map(|(p, v)| format!("{p}: {v}")).collect();
+        parts = leaves.into_iter().filter(|(p, _)| !p.starts_with(RESERVED_PREFIX)).take(4).map(|(p, v)| format!("{p}: {v}")).collect();
     }
     parts.truncate(4);
     parts.join(" · ")
@@ -376,7 +379,7 @@ fn leaf_paths(v: &Value, prefix: &str, out: &mut Vec<(String, String)>) {
 }
 
 fn event_time(ev: &Value) -> String {
-    ev.pointer("/keen/timestamp").and_then(Value::as_str).and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok()).map(|t| t.format("%b %-d %H:%M:%S").to_string()).unwrap_or_default()
+    ev.pointer(&format!("/{}/timestamp", crate::event::RESERVED)).and_then(Value::as_str).and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok()).map(|t| t.format("%b %-d %H:%M:%S").to_string()).unwrap_or_default()
 }
 
 fn event_table(items: &[Value]) -> Markup {
@@ -638,7 +641,7 @@ pub async fn stream_page(State(st): State<St>, u: WebUser, Path(pid): Path<Strin
     for (c, r) in results {
         if let Ok(Value::Array(items)) = r {
             for ev in items {
-                let ts = ev.pointer("/keen/timestamp").and_then(Value::as_str).unwrap_or("").to_string();
+                let ts = ev.pointer(&format!("/{}/timestamp", crate::event::RESERVED)).and_then(Value::as_str).unwrap_or("").to_string();
                 events.push((ts, c.clone(), ev));
             }
         }
@@ -761,7 +764,7 @@ struct PropProfile {
 
 async fn profile(st: &St, u: &WebUser, p: &Project, schema: &Schema, coll: &str, tz: &str) -> Response {
     let pid = &p.id;
-    let props: Vec<(String, String)> = schema.get(coll).map(|m| m.iter().filter(|(k, _)| !k.starts_with("keen.")).map(|(a, b)| (a.clone(), b.clone())).take(60).collect()).unwrap_or_default();
+    let props: Vec<(String, String)> = schema.get(coll).map(|m| m.iter().filter(|(k, _)| !k.starts_with(RESERVED_PREFIX)).map(|(a, b)| (a.clone(), b.clone())).take(60).collect()).unwrap_or_default();
     let tf = "this_30_days";
     let (series, total) = tokio::join!(
         run(st, pid, "count", json!({"event_collection": coll, "timeframe": tf, "interval": "daily"}), tz),
@@ -1006,7 +1009,7 @@ pub async fn funnels_page(State(st): State<St>, u: WebUser, Path(pid): Path<Stri
             steps.extend(schema.keys().take(2).map(|c| (c.clone(), String::new(), "eq".into(), String::new())));
         }
     }
-    let all_props: BTreeMap<String, String> = schema.values().flat_map(|m| m.iter().map(|(a, b)| (a.clone(), b.clone()))).filter(|(p, _)| !p.starts_with("keen.")).collect();
+    let all_props: BTreeMap<String, String> = schema.values().flat_map(|m| m.iter().map(|(a, b)| (a.clone(), b.clone()))).filter(|(p, _)| !p.starts_with(RESERVED_PREFIX)).collect();
     let result = if steps.len() >= 2 {
         let body: Vec<Value> = steps
             .iter()

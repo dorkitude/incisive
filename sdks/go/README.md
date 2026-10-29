@@ -35,7 +35,7 @@ Every request sends the key as a raw `Authorization` header. Bodies are JSON.
 type Purchase struct {
     Item  string                 `json:"item"`
     Price float64                `json:"price"`
-    Meta  incisive.EventMetadata `json:"keen"` // reserved metadata object (optional)
+    Meta  incisive.EventMetadata `json:"incisive"` // reserved metadata object (optional)
 }
 
 err := c.AddEvent("purchases", Purchase{Item: "ball", Price: 3.5,

@@ -137,8 +137,8 @@
         touch: "ontouchstart" in w || navigator.maxTouchPoints > 0
       },
       browser: { language: navigator.language },
-      ip_address: "${keen.ip}",
-      user_agent: { raw: "${keen.user_agent}" },
+      ip_address: "${incisive.ip}",
+      user_agent: { raw: "${incisive.user_agent}" },
       tracker: { name: "incisive.js", version: VERSION }
     };
     try { ctx.browser.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) {}

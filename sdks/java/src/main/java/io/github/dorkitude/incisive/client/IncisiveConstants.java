@@ -10,7 +10,7 @@ public final class IncisiveConstants {
     public static final String DEFAULT_API_VERSION = "1.0";
 
     /** Name of the reserved metadata object on every event (wire protocol literal). */
-    public static final String RESERVED_PROPERTY = "keen";
+    public static final String RESERVED_PROPERTY = "incisive";
 
     /**
      * Key under which {@link IncisiveJsonHandler#readJson} stores a JSON array root, since the

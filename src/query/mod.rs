@@ -217,6 +217,7 @@ pub fn parse(analysis: &str, m: &Map<String, Value>) -> Result<Query, QueryError
     if let Some(v) = m.get("analyses").filter(|v| !v.is_null()) {
         q.analyses = from(v, "InvalidParameterError", "analyses must be an object of named analyses")?;
     }
+    q.alias_reserved();
     q.validate()?;
     Ok(q)
 }
@@ -236,6 +237,22 @@ pub fn validate_filters(fs: &[Filter]) -> Result<(), QueryError> {
 }
 
 impl Query {
+    /// Accepts Keen's `keen.` property paths by mapping them to ours. Filters are mapped when
+    /// they are compiled, which also covers deletes and key filters.
+    fn alias_reserved(&mut self) {
+        let a = crate::event::alias_property;
+        self.target_property = a(&self.target_property);
+        self.group_by.iter_mut().for_each(|g| *g = a(g));
+        self.order_by.iter_mut().for_each(|o| o.property_name = a(&o.property_name));
+        self.property_names.iter_mut().for_each(|p| *p = a(p));
+        self.steps.iter_mut().for_each(|s| s.actor_property = a(&s.actor_property));
+        for s in self.analyses.values_mut() {
+            if let Some(t) = &s.target_property {
+                s.target_property = Some(a(t));
+            }
+        }
+    }
+
     fn validate(&self) -> Result<(), QueryError> {
         match self.analysis_type.as_str() {
             "funnel" => {

@@ -55,7 +55,7 @@ $client->addEvents([
 ]);
 ```
 
-Properties under the reserved metadata object (`'keen' => ['timestamp' => ...,
+Properties under the reserved metadata object (`'incisive' => ['timestamp' => ...,
 'addons' => [...]]`) are passed through untouched.
 
 ## Analyses

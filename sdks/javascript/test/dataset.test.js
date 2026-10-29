@@ -109,14 +109,14 @@ describe('parser selection from the echoed query', () => {
   test('extraction flattens nested properties into columns', () => {
     const out = parseResponse({
       result: [
-        { user: { id: 1, plan: 'pro' }, keen: { timestamp: 't1' } },
-        { user: { id: 2 }, price: 5, keen: { timestamp: 't2' } },
+        { user: { id: 1, plan: 'pro' }, incisive: { timestamp: 't1' } },
+        { user: { id: 2 }, price: 5, incisive: { timestamp: 't2' } },
       ],
       query: { analysis_type: 'extraction' },
     });
     assert.equal(out.parser, 'extraction');
     assert.deepEqual(out.dataset.data(), [
-      ['user.id', 'user.plan', 'keen.timestamp', 'price'],
+      ['user.id', 'user.plan', 'incisive.timestamp', 'price'],
       [1, 'pro', 't1', null],
       [2, null, 't2', 5],
     ]);

@@ -77,10 +77,10 @@ def test_percentile(server, client):
 def test_extraction(server, client):
     server.respond(200, {"result": [{"a": 1}]})
     assert client.extraction("c", timeframe="this_1_days", latest=10,
-                             property_names=["a", "keen.timestamp"]) == [{"a": 1}]
+                             property_names=["a", "incisive.timestamp"]) == [{"a": 1}]
     req = check_query(server, "extraction")
     assert req.query["latest"] == "10"
-    assert req.query_json("property_names") == ["a", "keen.timestamp"]
+    assert req.query_json("property_names") == ["a", "incisive.timestamp"]
 
 
 def test_email_extraction(server, client):

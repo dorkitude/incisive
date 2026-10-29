@@ -9,7 +9,7 @@ import (
 )
 
 // EventMetadata models the reserved metadata object that every event may
-// carry. Embed it in an event struct with the tag `json:"keen"`.
+// carry. Embed it in an event struct with the tag `json:"incisive"`.
 type EventMetadata struct {
 	// Timestamp overrides the server-assigned event time. Use Timestamp()
 	// to format a time.Time.

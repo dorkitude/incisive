@@ -9,7 +9,7 @@ from incisive.api import IncisiveApi
 from incisive.persistence_strategies import BasePersistenceStrategy
 
 # The reserved metadata object every event may carry on the wire.
-RESERVED_PROPERTY = "keen"
+RESERVED_PROPERTY = "incisive"
 
 
 class Event:

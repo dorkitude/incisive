@@ -114,6 +114,7 @@ async fn open(cfg: &Config) -> Result<(Arc<Engine>, Arc<Meta>)> {
 
 async fn serve(cfg: Config) -> Result<()> {
     let (engine, meta) = open(&cfg).await?;
+    engine.migrate_reserved_name().await.context("migrating stored events")?;
     let st = Arc::new(AppState::new(cfg.clone(), engine.clone(), meta.clone())?);
     if cfg.compaction.enabled {
         tokio::spawn(store::compaction_loop(engine.clone()));

@@ -114,7 +114,7 @@ namespace Incisive.Tests
             var body = (JObject)r.BodyJson;
             Assert.Equal("golden widget", (string)body["item"]);
             Assert.Equal(12.5, (double)body["price"]);
-            var ts = (string)body["keen"]["timestamp"];
+            var ts = (string)body["incisive"]["timestamp"];
             Assert.EndsWith("Z", ts);
             Assert.True(DateTime.UtcNow - DateTime.Parse(ts).ToUniversalTime() < TimeSpan.FromMinutes(1));
         }
@@ -128,14 +128,14 @@ namespace Incisive.Tests
             var n = 0;
             c.AddGlobalProperty("seq", new DynamicPropertyValue(() => ++n));
             await c.AddEventAsync("visits",
-                new Dictionary<string, object> { { "ip", "1.2.3.4" }, { "keen", new { timestamp = "2020-01-01T00:00:00.000Z" } } },
+                new Dictionary<string, object> { { "ip", "1.2.3.4" }, { "incisive", new { timestamp = "2020-01-01T00:00:00.000Z" } } },
                 new[] { AddOn.IpToGeo("ip", "geo"), AddOn.ReferrerParser("ref", "page", "refinfo") });
 
             var body = (JObject)Server.Last.BodyJson;
             Assert.Equal("shop", (string)body["app"]);
             Assert.Equal(2, (int)body["seq"]); // evaluated once at registration, once per event
-            Assert.Equal("2020-01-01T00:00:00.000Z", (string)body["keen"]["timestamp"]);
-            var addons = (JArray)body["keen"]["addons"];
+            Assert.Equal("2020-01-01T00:00:00.000Z", (string)body["incisive"]["timestamp"]);
+            var addons = (JArray)body["incisive"]["addons"];
             var ns = IncisiveConstants.ReservedNamespace;
             Assert.True(JToken.DeepEquals(RecordedRequest.Parse(
                 "[{\"name\":\"" + ns + ":ip_to_geo\",\"input\":{\"ip\":\"ip\"},\"output\":\"geo\"}," +
@@ -187,7 +187,7 @@ namespace Incisive.Tests
             var events = (JArray)body["purchases"];
             Assert.Equal(2, events.Count);
             Assert.Equal(1, (int)events[0]["n"]);
-            Assert.NotNull(events[1]["keen"]["timestamp"]);
+            Assert.NotNull(events[1]["incisive"]["timestamp"]);
         }
 
         [Fact]

@@ -4,7 +4,7 @@ require "test_helper"
 class PublishingTest < MockTest
   def test_publish_posts_json_with_write_key
     @server.respond(201, { "created" => true })
-    event = { "name" => "bob", "keen" => { "timestamp" => "2026-01-01T00:00:00.000Z" } }
+    event = { "name" => "bob", "incisive" => { "timestamp" => "2026-01-01T00:00:00.000Z" } }
     assert_equal({ "created" => true }, @client.publish(:signups, event))
     req = @server.last_request
     assert_equal "POST", req.method

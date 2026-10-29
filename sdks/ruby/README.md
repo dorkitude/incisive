@@ -43,7 +43,7 @@ yourself with `Incisive.default_client = Incisive::Client.new(...)`.
 
 ```ruby
 # Publishing (write key)
-Incisive.publish(:signups, username: "lloyd", keen: { timestamp: "2026-01-01T00:00:00Z" })
+Incisive.publish(:signups, username: "lloyd", incisive: { timestamp: "2026-01-01T00:00:00Z" })
 Incisive.publish_batch(signups: [{ n: 1 }, { n: 2 }], purchases: [{ price: 5 }])
 t = Incisive.publish_async(:signups, n: 3)   # runs on a Thread; t.value -> result or raises
 Incisive.beacon_url(:opens, recipient: "a@b.com")          # GET URL with api_key + base64 data

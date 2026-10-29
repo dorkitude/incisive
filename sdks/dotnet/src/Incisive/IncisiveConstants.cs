@@ -19,7 +19,7 @@ namespace Incisive
         /// Name of the reserved metadata object that every event carries
         /// (holds the timestamp and data enrichment add-ons).
         /// </summary>
-        public const string ReservedNamespace = "keen";
+        public const string ReservedNamespace = "incisive";
 
         // Resources
         public const string EventsResource = "events";

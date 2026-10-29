@@ -223,6 +223,8 @@ impl Meta {
         for col in ["code_hash TEXT", "attempts INTEGER NOT NULL DEFAULT 0"] {
             let _ = conn.execute(&format!("ALTER TABLE login_tokens ADD COLUMN {col}"), []);
         }
+        // Saved queries from before the reserved object was renamed from `keen` to `incisive`.
+        conn.execute(r#"UPDATE saved_queries SET body = REPLACE(body, '"keen.', '"incisive.') WHERE body LIKE '%"keen.%'"#, [])?;
         Ok(Arc::new(Meta { conn: Mutex::new(conn), path: path.to_path_buf(), keys: Mutex::default(), masters: Mutex::default() }))
     }
 

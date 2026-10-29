@@ -83,7 +83,7 @@ class IncisiveClientTest {
         JsonNode body = r.json();
         assertEquals("golden widget", body.get("item").asText());
         assertEquals(25, body.get("price").asInt());
-        String ts = body.get("keen").get("timestamp").asText();
+        String ts = body.get("incisive").get("timestamp").asText();
         assertTrue(ts.matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}[+-]\\d{4}"), ts);
         assertEquals(3, body.size());
     }
@@ -92,7 +92,7 @@ class IncisiveClientTest {
     void reservedPropertiesAndGlobalsMerge() throws Exception {
         Map<String, Object> globals = new HashMap<>();
         globals.put("app", "demo");
-        globals.put("keen", event("addons", List.of()));
+        globals.put("incisive", event("addons", List.of()));
         client.setGlobalProperties(globals);
         client.setGlobalPropertiesEvaluator(collection -> event("collection_seen", collection, "app", "evaluated"));
 
@@ -102,8 +102,8 @@ class IncisiveClientTest {
         assertEquals("u1", body.get("user").asText());
         assertEquals("evaluated", body.get("app").asText(), "evaluator overrides static globals");
         assertEquals("signups", body.get("collection_seen").asText());
-        assertEquals("2026-01-02T03:04:05.000Z", body.get("keen").get("timestamp").asText());
-        assertTrue(body.get("keen").get("addons").isArray());
+        assertEquals("2026-01-02T03:04:05.000Z", body.get("incisive").get("timestamp").asText());
+        assertTrue(body.get("incisive").get("addons").isArray());
     }
 
     @Test
@@ -150,7 +150,7 @@ class IncisiveClientTest {
     @Test
     void validationErrors() {
         client.setDebugMode(true);
-        assertThrows(InvalidEventException.class, () -> client.addEvent("c", event("keen", event("x", 1))));
+        assertThrows(InvalidEventException.class, () -> client.addEvent("c", event("incisive", event("x", 1))));
         assertThrows(InvalidEventException.class, () -> client.addEvent("c", event("a.b", 1)));
         assertThrows(InvalidEventException.class, () -> client.addEvent("c", new HashMap<>()));
         assertThrows(RuntimeException.class, () -> client.addEvent("", event("a", 1)));
@@ -188,7 +188,7 @@ class IncisiveClientTest {
         assertEquals(2, body.get("clicks").size());
         assertEquals(1, body.get("clicks").get(0).get("n").asInt());
         assertEquals(2, body.get("clicks").get(1).get("n").asInt());
-        assertTrue(body.get("clicks").get(0).get("keen").has("timestamp"));
+        assertTrue(body.get("clicks").get(0).get("incisive").has("timestamp"));
         assertEquals(1, body.get("views").size());
 
         // Only the transient failure remains queued.

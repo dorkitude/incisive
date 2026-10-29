@@ -7,7 +7,40 @@ use serde::Serialize;
 use serde_json::{json, Map, Value};
 
 /// Name of the reserved metadata object present on every event.
-pub const RESERVED: &str = "keen";
+pub const RESERVED: &str = "incisive";
+/// Keen's name for the reserved object. Accepted wherever `RESERVED` is (event input, add-on names
+/// and paths, placeholders, query property names) so Keen client libraries keep working; stored
+/// events always use `RESERVED`.
+pub const LEGACY_RESERVED: &str = "keen";
+
+/// Renames a top-level legacy reserved object to `RESERVED`, merging when both exist (the
+/// `RESERVED` values win). Applied to every event read from storage, so data written before the
+/// rename reads the same as new data.
+pub fn normalize_reserved(ev: &mut Value) {
+    let Some(obj) = ev.as_object_mut() else { return };
+    let Some(Value::Object(legacy)) = obj.remove(LEGACY_RESERVED) else { return };
+    match obj.entry(RESERVED).or_insert_with(|| Value::Object(Map::new())) {
+        Value::Object(cur) => {
+            for (k, v) in legacy {
+                cur.entry(k).or_insert(v);
+            }
+        }
+        other => *other = Value::Object(legacy),
+    }
+}
+
+/// Strips the reserved prefix (`incisive.` or `keen.`) from a path or add-on name.
+fn strip_reserved<'a>(s: &'a str, sep: char) -> Option<&'a str> {
+    [RESERVED, LEGACY_RESERVED].iter().find_map(|r| s.strip_prefix(r)?.strip_prefix(sep))
+}
+
+/// Maps Keen's spelling of a reserved property path (`keen.timestamp`) to ours.
+pub fn alias_property(p: &str) -> String {
+    match strip_reserved(p, '.') {
+        Some(rest) => format!("{RESERVED}.{rest}"),
+        None => p.to_string(),
+    }
+}
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct ValidationError {
@@ -47,7 +80,7 @@ where
 
 /// The event's timestamp in milliseconds (from the reserved metadata object).
 pub fn event_ts(e: &Value) -> i64 {
-    lookup(e, "keen.timestamp").and_then(Value::as_str).and_then(parse_time).map(|t| t.timestamp_millis()).unwrap_or(0)
+    lookup(e, &format!("{RESERVED}.timestamp")).and_then(Value::as_str).and_then(parse_time).map(|t| t.timestamp_millis()).unwrap_or(0)
 }
 
 pub fn validate_collection(name: &str) -> Result<(), ValidationError> {
@@ -104,14 +137,14 @@ pub struct RequestCtx {
     pub user_agent: Option<String>,
 }
 
-const IP_PLACEHOLDER: &str = "${keen.ip}";
-const UA_PLACEHOLDER: &str = "${keen.user_agent}";
+const IP_PLACEHOLDERS: [&str; 2] = ["${incisive.ip}", "${keen.ip}"];
+const UA_PLACEHOLDERS: [&str; 2] = ["${incisive.user_agent}", "${keen.user_agent}"];
 
 /// Replaces the IP and user agent placeholders in string values (whole-string matches only).
 fn substitute(v: &mut Value, ctx: &RequestCtx) {
     match v {
-        Value::String(s) if s == IP_PLACEHOLDER => *v = ctx.ip.clone().map(Value::String).unwrap_or(Value::Null),
-        Value::String(s) if s == UA_PLACEHOLDER => *v = ctx.user_agent.clone().map(Value::String).unwrap_or(Value::Null),
+        Value::String(s) if IP_PLACEHOLDERS.contains(&s.as_str()) => *v = ctx.ip.clone().map(Value::String).unwrap_or(Value::Null),
+        Value::String(s) if UA_PLACEHOLDERS.contains(&s.as_str()) => *v = ctx.user_agent.clone().map(Value::String).unwrap_or(Value::Null),
         Value::Array(a) => a.iter_mut().for_each(|x| substitute(x, ctx)),
         Value::Object(m) => m.values_mut().for_each(|x| substitute(x, ctx)),
         _ => {}
@@ -138,11 +171,18 @@ impl Preparer<'_> {
                 ev.insert(k.clone(), v.clone());
             }
         }
-        let mut meta = match ev.remove(RESERVED) {
-            None | Some(Value::Null) => Map::new(),
-            Some(Value::Object(m)) => m,
-            Some(_) => return Err(invalid("InvalidEventError", format!("the reserved {RESERVED:?} property must be an object"))),
-        };
+        let mut meta = Map::new();
+        for name in [RESERVED, LEGACY_RESERVED] {
+            match ev.remove(name) {
+                None | Some(Value::Null) => {}
+                Some(Value::Object(m)) => {
+                    for (k, v) in m {
+                        meta.entry(k).or_insert(v);
+                    }
+                }
+                Some(_) => return Err(invalid("InvalidEventError", format!("the reserved {name:?} property must be an object"))),
+            }
+        }
         validate_keys(&ev, 0)?;
         let ts = match meta.get("timestamp") {
             None | Some(Value::Null) => now,
@@ -182,7 +222,7 @@ impl Preparer<'_> {
 
 /// Resolves a dotted path against the event, where the reserved prefix addresses `meta`.
 fn addon_input<'a>(ev: &'a Value, meta: &'a Value, path: &str) -> Option<&'a Value> {
-    match path.strip_prefix(&format!("{RESERVED}.")) {
+    match strip_reserved(path, '.') {
         Some(rest) => lookup(meta, rest),
         None => lookup(ev, path),
     }
@@ -235,7 +275,7 @@ fn apply_addons(ev: &mut Value, meta: &mut Value, geo: Option<&maxminddb::Reader
             let p = input.get(k)?.as_str()?;
             addon_input(ev, meta, p)?.as_str().map(str::to_string)
         };
-        let out = match name.strip_prefix(&format!("{RESERVED}:")).unwrap_or(name) {
+        let out = match strip_reserved(name, ':').unwrap_or(name) {
             "url_parser" => arg("url").map(|u| parse_url(&u)),
             "referrer_parser" => arg("referrer_url").map(|r| parse_referrer(&r, arg("page_url").as_deref())),
             "date_time_parser" | "datetime_parser" => arg("date_time").and_then(|d| parse_time(&d)).map(|t| datetime_parts(&t)),
@@ -255,7 +295,7 @@ fn apply_addons(ev: &mut Value, meta: &mut Value, geo: Option<&maxminddb::Reader
             _ => return Err(invalid("InvalidAddonError", format!("unknown addon {name:?}"))),
         };
         if let Some(out) = out {
-            match output.strip_prefix(&format!("{RESERVED}.")) {
+            match strip_reserved(output, '.') {
                 Some(rest) => set_path(meta, rest, out),
                 None => set_path(ev, output, out),
             }

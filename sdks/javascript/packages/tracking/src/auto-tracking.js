@@ -28,7 +28,7 @@ const DEFAULTS = {
 
 // Name of the reserved metadata object in every event. Add-on names and server-side
 // placeholders are namespaced with it.
-export const RESERVED = 'keen';
+export const RESERVED = 'incisive';
 const addon = (name) => `${RESERVED}:${name}`;
 const placeholder = (name) => '${' + RESERVED + '.' + name + '}';
 

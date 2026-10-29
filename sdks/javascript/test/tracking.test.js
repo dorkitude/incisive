@@ -67,7 +67,7 @@ describe('recordEvent over fetch', () => {
     server.reply({ status: 201, body: { created: true } });
     const c = client();
     let cbArgs;
-    const res = await c.recordEvent('purchases', { price: 10, keen: { timestamp: '2026-01-01T00:00:00.000Z' } }, (...args) => { cbArgs = args; });
+    const res = await c.recordEvent('purchases', { price: 10, incisive: { timestamp: '2026-01-01T00:00:00.000Z' } }, (...args) => { cbArgs = args; });
     assert.deepEqual(res, { created: true });
     assert.deepEqual(cbArgs, [null, { created: true }]);
     const req = server.requests[0];
@@ -76,7 +76,7 @@ describe('recordEvent over fetch', () => {
     assert.equal(req.headers.authorization, 'WRITE_KEY');
     assert.equal(req.headers['content-type'], 'application/json');
     assert.deepEqual(Object.keys(req.headers).filter((h) => h.endsWith('-sdk')), []);
-    assert.deepEqual(req.body, { price: 10, keen: { timestamp: '2026-01-01T00:00:00.000Z' } });
+    assert.deepEqual(req.body, { price: 10, incisive: { timestamp: '2026-01-01T00:00:00.000Z' } });
     assert.equal(req.rawQuery, '');
   });
 
@@ -446,15 +446,15 @@ describe('auto-tracking', () => {
       assert.equal(event.url.full, 'https://www.example.com/pricing');
       assert.equal(event.referrer.full, 'https://ref.example/');
       assert.equal(event.page.title, 'Home');
-      assert.equal(event.ip_address, '${keen.ip}');
-      assert.equal(event.user_agent, '${keen.user_agent}');
+      assert.equal(event.ip_address, '${incisive.ip}');
+      assert.equal(event.user_agent, '${incisive.user_agent}');
       assert.match(event.user.uuid, /^[0-9a-f-]{36}$/);
       assert.match(event.tracked_by, /^incisive-tracking-/);
-      assert.match(event.keen.timestamp, /^\d{4}-\d\d-\d\dT/);
-      assert.deepEqual(event.keen.addons.map((a) => a.name), [
-        'keen:ua_parser', 'keen:url_parser', 'keen:url_parser', 'keen:date_time_parser', 'keen:date_time_parser', 'keen:ip_to_geo',
+      assert.match(event.incisive.timestamp, /^\d{4}-\d\d-\d\dT/);
+      assert.deepEqual(event.incisive.addons.map((a) => a.name), [
+        'incisive:ua_parser', 'incisive:url_parser', 'incisive:url_parser', 'incisive:date_time_parser', 'incisive:date_time_parser', 'incisive:ip_to_geo',
       ]);
-      assert.deepEqual(event.keen.addons[5], { name: 'keen:ip_to_geo', input: { ip: 'ip_address', remove_ip_property: false }, output: 'geo' });
+      assert.deepEqual(event.incisive.addons[5], { name: 'incisive:ip_to_geo', input: { ip: 'ip_address', remove_ip_property: false }, output: 'geo' });
       assert.match(decodeURIComponent(globalThis.document.cookie), /^incisive=\{.*"uuid"/);
     } finally {
       if (saved.navigator) Object.defineProperty(globalThis, 'navigator', saved.navigator);

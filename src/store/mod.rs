@@ -307,7 +307,9 @@ impl Engine {
             let mut evs = Vec::new();
             for line in plain.split(|b| *b == b'\n') {
                 if !line.is_empty() {
-                    evs.push(serde_json::from_slice(line)?);
+                    let mut ev = serde_json::from_slice(line)?;
+                    crate::event::normalize_reserved(&mut ev);
+                    evs.push(ev);
                 }
             }
             loaded_wal(evs)
@@ -532,7 +534,7 @@ impl Engine {
             .iter()
             .map(|e| {
                 let ts = crate::event::event_ts(e);
-                let id = table::lookup(e, "keen.id").and_then(Value::as_str).unwrap_or("").to_string();
+                let id = table::lookup(e, &format!("{}.id", crate::event::RESERVED)).and_then(Value::as_str).unwrap_or("").to_string();
                 (ts, id, e.to_string(), e)
             })
             .collect();
@@ -611,7 +613,9 @@ impl Engine {
             let l = self.load(&s.key, false).await?;
             let b = self.batch_from(&l, &[], true)?;
             for r in b.raw.as_ref().map(|r| r.iter()).into_iter().flatten() {
-                out.push(serde_json::from_str(r)?);
+                let mut ev = serde_json::from_str(r)?;
+                crate::event::normalize_reserved(&mut ev);
+                out.push(ev);
             }
         }
         Ok(out)
@@ -664,6 +668,47 @@ impl Engine {
         Ok(deleted)
     }
 
+    /// One-time upgrade of data stored before the reserved object was renamed from `keen` to
+    /// `incisive`: absorbs all WAL (normalized as it is read), then rewrites every collection whose
+    /// segments still have `keen.` columns. A marker object records that it ran.
+    pub async fn migrate_reserved_name(&self) -> Result<()> {
+        const MARKER: &str = "migrations/reserved-incisive";
+        if self.get_object(MARKER).await?.is_some() {
+            return Ok(());
+        }
+        self.compact_all(true).await?;
+        let legacy = format!("{}.", crate::event::LEGACY_RESERVED);
+        let manifests = self.key("manifests/");
+        let mut rewritten = 0;
+        for key in self.list_objects("manifests/").await? {
+            let Some(project) = key.strip_prefix(&manifests).and_then(|k| k.strip_suffix(".json")) else { continue };
+            let lock = self.project_lock(project);
+            let _g = lock.lock().await;
+            let ms = self.manifest(project).await?;
+            let mut m = ms.m.clone();
+            let mut old = vec![];
+            for (coll, st) in m.collections.iter_mut() {
+                if !st.properties.keys().any(|p| p.starts_with(&legacy)) {
+                    continue;
+                }
+                let events = self.segment_events(&st.segments).await?;
+                old.extend(st.segments.drain(..).map(|s| s.key));
+                st.properties.clear();
+                if let Some(seg) = self.write_segment(project, coll, &events, &mut st.properties).await? {
+                    st.segments.push(seg);
+                }
+                rewritten += 1;
+            }
+            if !old.is_empty() {
+                self.save_manifest(project, &ms, m).await?;
+                self.delete_objects(old).await;
+            }
+        }
+        self.put_object(MARKER, Bytes::from_static(b"done")).await?;
+        tracing::info!(collections = rewritten, "migrated stored events to the incisive reserved object");
+        Ok(())
+    }
+
     /// Total WAL objects not yet compacted, for metrics.
     pub fn pending_wal(&self) -> usize {
         self.wal.read().values().map(|m| m.len()).sum()
@@ -700,7 +745,7 @@ impl Engine {
 
 fn loaded_wal(evs: Vec<Value>) -> Loaded {
     let ts = evs.iter().map(crate::event::event_ts).collect();
-    let ids = evs.iter().map(|e| Arc::from(table::lookup(e, "keen.id").and_then(Value::as_str).unwrap_or(""))).collect();
+    let ids = evs.iter().map(|e| Arc::from(table::lookup(e, &format!("{}.id", crate::event::RESERVED)).and_then(Value::as_str).unwrap_or(""))).collect();
     Loaded { ts: Arc::new(ts), ids: Arc::new(ids), cols: Mutex::new(HashMap::new()), raw: Mutex::new(None), src: Source::Wal(Arc::new(evs)) }
 }
 

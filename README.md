@@ -121,10 +121,16 @@ the key in the `Authorization` header (or as `api_key`).
 | `GET /`, `POST /` | project details; `POST {"name": ...}` renames (master key) |
 | `/datasets` | not supported (501) |
 
-Events carry a reserved metadata object holding `timestamp` (defaults to receipt time),
-`created_at`, `id` and data enrichment add-ons (URL, referrer, user agent, date-time and IP-to-geo
-parsers). A string value equal to the client IP or user agent placeholder is replaced by the
-server.
+Events carry a reserved metadata object, `incisive`, holding `timestamp` (defaults to receipt
+time), `created_at`, `id` and `addons`: data enrichment add-ons (`incisive:url_parser`,
+`incisive:referrer_parser`, `incisive:ua_parser`, `incisive:date_time_parser`,
+`incisive:ip_to_geo`), each `{"name", "input": {...}, "output": "path"}`. A string value equal to
+`${incisive.ip}` or `${incisive.user_agent}` is replaced by the client's IP or user agent.
+
+For Keen client libraries, Keen's spellings are accepted everywhere: a `keen` object on events,
+`keen:` add-on names, `keen.` paths in add-ons and queries, and `${keen.ip}`. They are stored and
+returned as `incisive`. Data written before the rename is upgraded once at startup (marker object
+`migrations/reserved-incisive`).
 
 ### Keys and permissions
 

@@ -42,9 +42,10 @@ struct Compiled {
 }
 
 fn compile(f: &Filter) -> Result<Compiled, QueryError> {
+    let f = &Filter { property_name: crate::event::alias_property(&f.property_name), ..f.clone() };
     let v = &f.property_value;
     let op = f.operator.as_str();
-    if f.property_name == "keen.timestamp"
+    if f.property_name == format!("{}.timestamp", crate::event::RESERVED)
         && let Some(t) = v.as_str().and_then(crate::event::parse_time) {
             let ms = t.timestamp_millis();
             let op = match op {

@@ -275,7 +275,8 @@ async fn standard_collections_and_placeholders() {
         "page": {"url": "https://shop.example/pricing?utm_source=news&utm_medium=email", "referrer": "https://www.google.com/"},
         "session": {"id": "s1", "landing_page": {"url": "https://shop.example/pricing?utm_source=news&utm_medium=email"}, "referrer": {"url": "https://www.google.com/"}},
         "visitor": {"id": "v1"},
-        "custom": "${keen.ip}"
+        "custom": "${incisive.ip}",
+        "legacy": "${keen.ip}"
     });
     let r = e.call("POST", &e.url("/events/web_pageview"), Some(&e.write), Some(pv), &hdrs).await;
     assert_eq!(r.status, 201, "{}", String::from_utf8_lossy(&r.body));
@@ -287,6 +288,7 @@ async fn standard_collections_and_placeholders() {
     let ev = &r.json()["result"][0];
     assert_eq!(ev["ip_address"], "203.0.113.9");
     assert_eq!(ev["custom"], "203.0.113.9");
+    assert_eq!(ev["legacy"], "203.0.113.9", "Keen's placeholder spelling works too");
     assert_eq!(ev["user_agent"]["raw"], ua);
     assert_eq!(ev["browser"]["name"], "Chrome");
     assert_eq!(ev["device"]["type"], "desktop");
@@ -368,4 +370,55 @@ async fn account_master_keys() {
     assert_eq!(e.call("DELETE", &format!("/1.0/account/keys/{id2}"), Some(&ak), None, &[]).await.status, 204);
     assert_eq!(e.call("GET", "/1.0/account", Some(&ak2), None, &[]).await.status, 401, "deleted");
     assert_eq!(e.call("GET", &format!("/1.0/projects/{pid}/keys"), Some(&ak2), None, &[]).await.status, 401);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn keen_spellings_are_accepted() {
+    let e = env().await;
+    let ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+    // An event as a Keen client library sends it.
+    let ev = json!({"ua": ua, "keen": {"timestamp": "2026-01-02T03:04:05.000Z", "addons": [
+        {"name": "keen:ua_parser", "input": {"ua_string": "ua"}, "output": "tech"},
+        {"name": "keen:date_time_parser", "input": {"date_time": "keen.timestamp"}, "output": "when"}
+    ]}});
+    assert_eq!(e.call("POST", &e.url("/events/legacy"), Some(&e.write), Some(ev), &[]).await.status, 201);
+    let r = e.call("GET", &e.url("/queries/extraction?event_collection=legacy&timeframe=this_10_years"), Some(&e.read), None, &[]).await;
+    let got = &r.json()["result"][0];
+    assert!(got.get("keen").is_none(), "{got}");
+    assert_eq!(got["incisive"]["timestamp"], "2026-01-02T03:04:05.000Z");
+    assert_eq!(got["tech"]["browser"]["family"], "Chrome", "{got}");
+    assert_eq!(got["when"]["year"], 2026, "{got}");
+    // Queries may name reserved properties either way.
+    for name in ["keen.timestamp", "incisive.timestamp"] {
+        let f = urlencode(&json!([{"property_name": name, "operator": "gt", "property_value": "2026-01-01T00:00:00Z"}]).to_string());
+        let r = e.call("GET", &e.url(&format!("/queries/count?event_collection=legacy&timeframe=this_10_years&filters={f}")), Some(&e.read), None, &[]).await;
+        assert_eq!(r.json()["result"], json!(1), "{name}: {}", String::from_utf8_lossy(&r.body));
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn events_stored_under_keen_are_migrated() {
+    let e = env().await;
+    let st = &e.st;
+    // Data written before the rename: the reserved object is `keen`, in WAL and in segments.
+    let old = |n: i64| incisive::store::StoredEvent {
+        collection: "old".into(),
+        ts: 1_767_225_600_000 + n,
+        id: format!("id{n}"),
+        event: json!({"n": n, "keen": {"timestamp": format!("2026-01-01T00:00:00.00{n}Z"), "id": format!("id{n}"), "created_at": "2026-01-01T00:00:00.000Z"}}),
+    };
+    st.engine.append(&e.pid, vec![old(1), old(2)]).await.unwrap();
+    st.engine.compact_all(true).await.unwrap();
+    st.engine.append(&e.pid, vec![old(3)]).await.unwrap();
+    let schema = st.engine.schema(&e.pid).await.unwrap();
+    assert!(schema["old"].contains_key("keen.timestamp"), "segment holds the old name");
+    st.engine.migrate_reserved_name().await.unwrap();
+    let schema = st.engine.schema(&e.pid).await.unwrap();
+    assert!(schema["old"].keys().all(|p| !p.starts_with("keen.")), "{:?}", schema["old"]);
+    assert!(schema["old"].contains_key("incisive.timestamp"));
+    let r = e.call("GET", &e.url("/queries/count?event_collection=old&timeframe=this_10_years&group_by=incisive.id"), Some(&e.read), None, &[]).await;
+    assert_eq!(r.json()["result"].as_array().unwrap().len(), 3, "{}", String::from_utf8_lossy(&r.body));
+    let r = e.call("GET", &e.url("/queries/extraction?event_collection=old&timeframe=this_10_years"), Some(&e.read), None, &[]).await;
+    assert_eq!(r.json()["result"][2]["incisive"]["timestamp"], "2026-01-01T00:00:00.003Z");
+    st.engine.migrate_reserved_name().await.unwrap(); // runs once; a second call is a no-op
 }

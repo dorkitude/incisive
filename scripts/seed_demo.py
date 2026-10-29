@@ -62,7 +62,7 @@ for _ in range(n_sessions):
     if ref:
         sess["referrer"] = {"url": ref}
     common = {"visitor": {"id": vid}, "user_agent": {"raw": ua}, "geo": {"country": country, "country_code": code}, "browser": {"language": "en-US", "timezone": "America/New_York"}}
-    batch["web_session"].append({**common, "session": dict(sess), "keen": {"timestamp": iso(start)}})
+    batch["web_session"].append({**common, "session": dict(sess), "incisive": {"timestamp": iso(start)}})
     pages = [landing] + [rnd.choice(PAGES) for _ in range(rnd.choices([0, 1, 2, 3, 5], [45, 25, 15, 10, 5])[0])]
     t = start
     for i, p in enumerate(pages):
@@ -70,9 +70,9 @@ for _ in range(n_sessions):
             t += dt.timedelta(seconds=rnd.randint(8, 240))
         s = dict(sess, pageview_index=i + 1, elapsed_seconds=int((t - start).total_seconds()))
         url = landing_url if i == 0 else f"https://shop.example{p}"
-        batch["web_pageview"].append({**common, "session": s, "page": {"url": url, "title": p.strip("/") or "Home"}, "keen": {"timestamp": iso(t)}})
+        batch["web_pageview"].append({**common, "session": s, "page": {"url": url, "title": p.strip("/") or "Home"}, "incisive": {"timestamp": iso(t)}})
         if p == "/signup" and rnd.random() < 0.4:
-            batch["signup"].append({"visitor": {"id": vid}, "plan": rnd.choice(["free", "pro"]), "keen": {"timestamp": iso(t)}})
+            batch["signup"].append({"visitor": {"id": vid}, "plan": rnd.choice(["free", "pro"]), "incisive": {"timestamp": iso(t)}})
 
 
 def post(chunk):

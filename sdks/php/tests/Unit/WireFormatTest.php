@@ -41,9 +41,9 @@ class WireFormatTest extends TestCase
 
         return [
             'addEvent escapes collection' => [
-                'addEvent', ['my coll/x', ['foo' => 'bar', 'keen' => ['timestamp' => 't']]],
+                'addEvent', ['my coll/x', ['foo' => 'bar', 'incisive' => ['timestamp' => 't']]],
                 'POST', '/1.0/projects/PID/events/my%20coll%2Fx', 'WRITE',
-                ['foo' => 'bar', 'keen' => ['timestamp' => 't']],
+                ['foo' => 'bar', 'incisive' => ['timestamp' => 't']],
             ],
             'addEvents' => [
                 'addEvents', [['c1' => [['a' => 1]], 'c2' => [['b' => 2]]]],

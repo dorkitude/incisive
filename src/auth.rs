@@ -191,7 +191,7 @@ pub fn validate_key_spec(permitted: &[String], options: &KeyOptions) -> Result<(
         crate::query::validate_filters(&q.filters).map_err(|e| e.message)?;
     }
     if let Some(af) = options.writes.as_ref().and_then(|w| w.autofill.as_ref())
-        && af.contains_key(crate::event::RESERVED) {
+        && (af.contains_key(crate::event::RESERVED) || af.contains_key(crate::event::LEGACY_RESERVED)) {
             return Err("autofill cannot set the reserved metadata object".into());
         }
     Ok(())

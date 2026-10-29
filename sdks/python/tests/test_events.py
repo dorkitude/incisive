@@ -29,10 +29,10 @@ def test_add_event_wire(server, client):
 
 def test_add_event_timestamp_merges_reserved_object(server, client):
     ts = datetime.datetime(2026, 1, 2, 3, 4, 5)
-    body = {"a": 1, "keen": {"addons": []}}
+    body = {"a": 1, "incisive": {"addons": []}}
     client.add_event("c", body, timestamp=ts)
-    assert server.last.json() == {"a": 1, "keen": {"addons": [], "timestamp": "2026-01-02T03:04:05"}}
-    assert body == {"a": 1, "keen": {"addons": []}}  # caller's dict untouched
+    assert server.last.json() == {"a": 1, "incisive": {"addons": [], "timestamp": "2026-01-02T03:04:05"}}
+    assert body == {"a": 1, "incisive": {"addons": []}}  # caller's dict untouched
 
 
 def test_collection_name_is_escaped(server, client):

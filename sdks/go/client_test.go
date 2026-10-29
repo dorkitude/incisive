@@ -13,7 +13,7 @@ func TestAddEventWireFormat(t *testing.T) {
 	c := m.client()
 	type ev struct {
 		Price float64       `json:"price"`
-		Meta  EventMetadata `json:"keen"`
+		Meta  EventMetadata `json:"incisive"`
 	}
 	ts := time.Date(2026, 1, 2, 3, 4, 5, 6e6, time.FixedZone("x", 3600))
 	if err := c.AddEvent("my purchases/eu?x#y", ev{Price: 7.13, Meta: EventMetadata{Timestamp: Timestamp(ts)}}); err != nil {
@@ -21,7 +21,7 @@ func TestAddEventWireFormat(t *testing.T) {
 	}
 	r := m.last(t)
 	assertReq(t, r, "POST", "/1.0/projects/proj1/events/my%20purchases%2Feu%3Fx%23y", "WKEY")
-	assertJSON(t, r.Body, `{"price":7.13,"keen":{"timestamp":"2026-01-02T02:04:05.006Z"}}`)
+	assertJSON(t, r.Body, `{"price":7.13,"incisive":{"timestamp":"2026-01-02T02:04:05.006Z"}}`)
 }
 
 func TestAddEventsReturnsPerEventResults(t *testing.T) {
