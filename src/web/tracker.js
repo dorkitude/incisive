@@ -22,7 +22,7 @@
  */
 (function (w, d) {
   "use strict";
-  var VERSION = "1.2.0";
+  var VERSION = "1.3.0";
   var SESSION_TIMEOUT = 30 * 60 * 1000;
   var AUTO = ["pageviews", "clicks", "forms", "engagement", "views", "errors"];
   var AUTO_DEFAULT = { pageviews: true, clicks: true, forms: true, engagement: true, views: true, errors: false };
