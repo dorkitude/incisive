@@ -710,7 +710,7 @@ mod tests {
         let (other, _) = m.ensure_user("b@example.com").unwrap();
         let (mine, _) = m.create_project(Some(&u.id), "mine").unwrap();
         let (theirs, _) = m.create_project(Some(&other.id), "theirs").unwrap();
-        let (k, secret) = m.create_account_key(&u.id, "cockpit").unwrap();
+        let (k, secret) = m.create_account_key(&u.id, "ops").unwrap();
         assert!(secret.starts_with(auth::ACCOUNT_KEY_PREFIX));
         let (who, _) = m.authenticate_account(&secret).unwrap().unwrap();
         assert_eq!(who.id, u.id);

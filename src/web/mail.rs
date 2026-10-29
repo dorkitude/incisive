@@ -35,7 +35,7 @@ impl Mailer {
         let mut req = self.http.post(format!("{}/emails", self.url)).json(&json!({
             "from": self.from, "to": [to], "subject": subject, "text": text, "html": html,
         }));
-        // Behind an exe.dev integration the proxy adds the credential; otherwise use the key.
+        // Without a key, a credential-injecting proxy at resend_url can supply it.
         if !self.api_key.is_empty() {
             req = req.bearer_auth(&self.api_key);
         }

@@ -1,7 +1,7 @@
-/*! Incisive web tracker v1.1.0
+/*! Incisive web tracker v1.3.0
  *
  * Script tag (auto-tracks everything; no other code needed):
- *   <script defer src="https://static.tryincisive.com/js/incisive.js"
+ *   <script defer src="https://YOUR_INCISIVE_HOST/js/incisive.js"
  *     data-project="PROJECT_ID" data-key="WRITE_KEY" data-host="https://API_HOST"></script>
  *   data-auto-track="false" turns auto-tracking off; a list such as "pageviews,clicks" picks parts.
  *   Other options: data-spa="false", data-respect-dnt="true", data-cookie-domain=".example.com".
