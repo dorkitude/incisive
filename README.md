@@ -5,238 +5,127 @@
   </picture>
 </p>
 
-Event analytics on object storage. One Rust binary that takes JSON events over HTTP, stores them
-durably in an S3-compatible bucket (Cloudflare R2 in production), and answers analysis queries
-(counts, uniques, sums, percentiles, funnels, extractions, grouped and bucketed by time) from
-columnar segments cached on local NVMe. It ships with a web app: sign-in with emailed 6-digit codes, API key management,
-a tracking pixel generator, and a web analytics dashboard built on a standard pageview schema.
+<p align="center"><b>Event analytics you host yourself.</b><br>
+Website analytics, product events and API usage, in one small server, with your data in your own bucket.</p>
 
-The HTTP API lives under `/1.0/projects/{project_id}/...`. Client libraries for Python, Ruby,
-JavaScript, Go, PHP, Java and .NET are in [`sdks/`](sdks/).
+---
 
-## Architecture
+Incisive is a single binary. Send it JSON events from a web page, a server or `curl`, then ask
+questions: how many, how many unique, sums and percentiles, funnels, raw extractions, grouped by
+any property and bucketed by hour, day or month. It comes with a web app, a website tracker and
+client libraries for seven languages.
 
-```mermaid
-flowchart TB
-    clients(["Clients: browser tracker, pixels, SDKs, curl"])
-    clients --> api["HTTP API · /1.0/projects/{id}/…"]
+- **Web analytics in one script tag.** Pageviews, sessions, sources and campaigns, clicks,
+  outbound links, downloads, form submissions, scroll depth and engaged time, with a dashboard
+  ready the moment events arrive.
+- **Any event you like.** Events are schemaless JSON. Track signups, purchases, API calls or
+  messages, with whatever properties matter to you, and query them right away.
+- **A query builder, event stream, pivot tables and funnels** in the web app, and the same
+  analyses over a plain HTTP API for your own dashboards.
+- **Keys you can hand out.** Write-only keys are safe to embed in web pages. Read keys can be
+  limited to certain queries, or locked to one customer's data with filters, for embedded
+  dashboards.
 
-    api -- "events" --> commit["Group commit<br/>batches requests for a few ms"]
-    api -- "queries" --> query["Query engine<br/>filters, groups, intervals, funnels"]
-    api -- "accounts, keys" --> meta[("SQLite metadata")]
-    query --> cache[("NVMe disk cache<br/>+ decoded columns in memory")]
+## Why you can trust it with your data
 
-    subgraph r2["R2 bucket: the source of truth"]
-        wal["wal/<br/>zstd NDJSON, one object per batch"]
-        segments["segments/<br/>Parquet, typed columns per property"]
-        manifests["manifests/<br/>segment list + schema per project"]
-        backups["backups/<br/>metadata snapshots"]
-        wal -- "compaction<br/>after 120 s or 32 objects" --> segments
-        segments -. "listed in" .-> manifests
-    end
+- **Your data stays with you.** Events are stored in a bucket you control: any S3-compatible
+  storage (AWS S3, Cloudflare R2, MinIO, Backblaze B2, ...) or a local directory. Nothing is sent
+  to anyone else.
+- **Open formats.** Events land as compressed newline-delimited JSON and are compacted into
+  Parquet files. DuckDB, pandas, Spark or anything else that reads Parquet can read your data
+  directly, with or without Incisive. You are never locked in.
+- **Nothing acknowledged is lost.** A write gets its `201` only after its events are stored in the
+  bucket. Accounts, projects and keys are backed up to the same bucket every few minutes and
+  restored automatically on a fresh machine.
+- **Careful with visitors.** The tracker is first-party (your domain, your server), never sends
+  form field values, can honor Do Not Track, and has an "Ignore my traffic" switch so your own
+  visits don't skew your numbers.
+- **Careful with secrets.** API keys are stored hashed. Sign-in uses one-time emailed codes, with
+  no passwords to leak.
+- **Tested.** Every analysis is checked against hand-computed answers before and after data is
+  compacted, alongside tests for every write path, permission and key type, an end-to-end test of
+  the website tracker, and test suites for every client library.
 
-    commit -- "create-only put,<br/>then 201" --> wal
-    cache -- "on a miss" --> segments
-    query -. "not yet compacted" .-> wal
-    meta -- "every few minutes" --> backups
-```
+## Try it in two minutes
 
-- **Writes** are group-committed: requests arriving within a few milliseconds share one
-  zstd-compressed NDJSON object per collection, written with a create-only put. A request is
-  acknowledged only after its object is stored, so an acknowledged event is durable.
-- **Compaction** folds WAL objects into Parquet segments. Every leaf property path becomes typed
-  columns (a type tag, a number column and a string column), so mixed types, explicit nulls and
-  missing properties stay distinct. The raw event is kept too, for extractions. Small segments are
-  merged over time and absorbed WAL objects are deleted.
-- **Manifests** (one JSON document per project) list a collection's segments, the WAL objects they
-  absorbed, and the observed schema. They are updated with conditional puts (ETag match).
-- **Queries** read the manifest's segments plus WAL objects not yet absorbed, project only the
-  columns they need, and evaluate filters and aggregations over columnar batches. Immutable objects
-  are cached on local disk (LRU) and decoded columns in memory.
-- **Metadata** (users, sessions, projects, keys, saved queries) lives in SQLite, snapshotted to the
-  bucket every few minutes and restored automatically when the local file is missing.
-- One server writes to a given storage prefix. Run more than one writer only with separate
-  prefixes.
-
-Object layout under the configured prefix:
-
-| Key | Contents |
-|---|---|
-| `wal/{project}/{collection}/{ulid}_{min_ts}_{max_ts}.ndjson.zst` | committed, not yet compacted events |
-| `segments/{project}/{collection}/{ulid}.parquet` | compacted events |
-| `manifests/{project}.json` | segments, absorbed WAL, schema |
-| `backups/meta-latest.sqlite.zst`, `backups/meta-{date}.sqlite.zst` | metadata snapshots |
-
-## Running
+You need [Rust](https://rustup.rs). By default Incisive stores everything under `./data`, so
+there is nothing else to set up.
 
 ```bash
+git clone https://github.com/dorkitude/incisive && cd incisive
 cargo build --release
-./target/release/incisive --config incisive.toml serve
+./target/release/incisive serve
 ```
 
-Configuration comes from defaults, then the TOML file, then `INCISIVE_*` environment variables
-(`__` separates sections, e.g. `INCISIVE_STORAGE__BUCKET`). `incisive config` prints the effective
-configuration. The main sections:
+Open http://localhost:8080 and sign in with any email address. Until you configure an email
+provider, the sign-in code is printed in the server's log instead of being sent. You'll land on a
+new project with its keys and a ready-to-paste tracking snippet.
 
-- `server`: `addr`, `public_url` (used in emails and snippets), `trust_forwarded_for` (take client
-  IPs from `X-Forwarded-For`; enable only behind a trusted proxy), `redirect_allow_hosts`,
-  `secure_cookies`.
-- `storage`: `backend` (`s3` or `fs`), `bucket`, `endpoint`, `region`, `profile`, `prefix`,
-  `fs_path`. Credentials come from `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` or the named profile
-  in `~/.aws/credentials`; they are never written to config files.
-- `cache`: disk cache `dir` and `max_disk_bytes`.
-- `wal`, `compaction`: group commit window and compaction thresholds.
-- `meta`: SQLite `path` and `backup_interval_secs`.
-- `email`: a Resend-compatible `resend_url`, optional `api_key`, `from`, and `log_only` (print
-  sign-in codes instead of sending them, for development).
-- `limits`: event and request sizes, batch size, per-project write and query rates, query
-  concurrency and timeout, and caps on extractions, funnel actors, groups, intervals and scans.
-- `geo.db_path`: an optional MaxMind-format city database for IP geolocation (country, region,
-  city, coordinates). The dev deployment uses DB-IP City Lite, refreshed monthly by
-  `scripts/update_geo.sh` and `deploy/incisive-geo.timer`; its license (CC BY 4.0) requires the
-  "IP Geolocation by DB-IP" credit the dashboard shows.
+Prefer the terminal? Create a project and send it an event:
 
-Other commands: `create-project NAME [--owner EMAIL]` prints a new project's keys,
-`create-account-key NAME --owner EMAIL` prints a new account master key, `compact` folds
-all pending WAL now, `backup` snapshots metadata now.
+```bash
+./target/release/incisive create-project "My app" --owner you@example.com
+# prints the project id and its master, read and write keys
 
-`deploy/` holds the dev deployment: config, systemd unit, and the Caddyfile that routes the
-share port by host name.
+curl -X POST "http://localhost:8080/1.0/projects/$PROJECT_ID/events/signups" \
+  -H "Authorization: $WRITE_KEY" -H "Content-Type: application/json" \
+  -d '{"plan": "pro", "user": {"id": 42, "country": "NZ"}}'
 
-## API
+curl "http://localhost:8080/1.0/projects/$PROJECT_ID/queries/count?event_collection=signups&group_by=plan&timeframe=this_7_days" \
+  -H "Authorization: $READ_KEY"
+```
 
-Project routes are under `/1.0/projects/{project_id}`, account routes under `/1.0/account`. Send
-the key in the `Authorization` header (or as `api_key`).
+Want to explore the dashboard first? `uv run scripts/seed_demo.py http://localhost:8080 $PROJECT_ID $WRITE_KEY`
+fills a project with 30 days of realistic website traffic.
 
-| Route | |
-|---|---|
-| `POST /events/{collection}` | one event (`201 {"created": true}`); a JSON list is treated as a batch |
-| `POST /events` | batch: `{collection: [events]}`, answered per event |
-| `GET /events/{collection}?data=BASE64` | write from a URL: answers JSON, a 1x1 GIF (`c=` or an image `Accept`), JSONP (`jsonp`/`callback`), or a redirect to an allowed host (`redirect`) |
-| `GET /events`, `GET /events/{collection}`, `GET /events/{c}/properties/{p}` | schema discovery |
-| `DELETE /events/{collection}` | delete by `filters`, `timeframe`, `timezone`; any other parameter is rejected so a misspelled filter cannot delete everything |
-| `GET\|POST /queries/{analysis}` | `count`, `count_unique`, `sum`, `average`, `minimum`, `maximum`, `median`, `percentile`, `select_unique`, `extraction`, `funnel`, `multi_analysis` |
-| `/queries/saved[/{name}[/result]]` | saved queries (also under `/queries/cached`) |
-| `/keys[/{key}[/revoke\|/unrevoke]]` | key management |
-| `GET /`, `POST /` | project details; `POST {"name": ...}` renames (master key) |
-| `/datasets` | not supported (501) |
+## Track your website
 
-Events carry a reserved metadata object, `incisive`, holding `timestamp` (defaults to receipt
-time), `created_at`, `id` and `addons`: data enrichment add-ons (`incisive:url_parser`,
-`incisive:referrer_parser`, `incisive:ua_parser`, `incisive:date_time_parser`,
-`incisive:ip_to_geo`), each `{"name", "input": {...}, "output": "path"}`. A string value equal to
-`${incisive.ip}` or `${incisive.user_agent}` is replaced by the client's IP or user agent.
-
-For Keen client libraries, Keen's spellings are accepted everywhere: a `keen` object on events,
-`keen:` add-on names, `keen.` paths in add-ons and queries, and `${keen.ip}`. They are stored and
-returned as `incisive`. Data written before the rename is upgraded once at startup (marker object
-`migrations/reserved-incisive`).
-
-### Keys and permissions
-
-Keys look like `sk_incisive_` followed by 20 characters, and are stored hashed. Each project starts
-with three:
-
-- **Master**: everything, including deletes, saved query changes and key management. Its secret
-  is retained so it can verify legacy encrypted scoped keys minted by client libraries.
-- **Read**: `queries`, `saved_queries`, `cached_queries`, `schema`.
-- **Write**: `writes`. Write-only keys are public by nature (they ship in web pages), so their
-  secret stays visible in the app.
-
-Custom keys combine `writes`, `queries`, `saved_queries`, `cached_queries`, `schema` and
-`datasets`, with options: `writes.autofill` (properties stamped onto every event, overriding the
-client), `queries.filters` (added to every query, for per-customer dashboards), and
-`saved_queries`/`cached_queries` `allowed`/`blocked` name lists.
-
-### Account master keys
-
-Account master keys look like `ak_incisive_` followed by 32 characters. Each belongs to a user,
-is stored hashed and is shown only once, at creation (web app: **Account keys**, or the
-`create-account-key` command). It works as the master key of every project its user belongs to,
-including projects created later, and it can use the account routes:
-
-| Route | |
-|---|---|
-| `GET /1.0/account` | the user's email and projects |
-| `GET /1.0/account/projects` | list projects |
-| `POST /1.0/account/projects` | `{"name": ...}` creates a project; answers with its master, read and write keys |
-| `GET\|POST /1.0/account/keys` | list account keys (no secrets) or create one (`{"name": ...}`) |
-| `DELETE /1.0/account/keys/{id}` | delete an account key |
-
-Project keys never work on account routes, and an account key gets nothing on projects its user
-does not belong to.
-
-## Web analytics
-
-The browser tracker is `src/web/tracker.js`. `scripts/publish_tracker.sh` uploads it to a public
-static bucket as `js/incisive.js` (5-minute cache) and `js/incisive-VERSION.js` (immutable), and
-`server.tracker_url` points the install snippet there. The server also serves it at
-`/js/incisive.js` for self-hosting.
+The **Install** page in the app gives you this snippet with your keys filled in. Paste it before
+`</head>`:
 
 ```html
-<script defer src="https://STATIC_HOST/js/incisive.js"
-  data-project="PROJECT_ID" data-key="WRITE_KEY" data-host="https://API_HOST"></script>
+<script defer src="https://YOUR_INCISIVE_HOST/js/incisive.js"
+  data-project="PROJECT_ID" data-key="WRITE_KEY" data-host="https://YOUR_INCISIVE_HOST"></script>
 ```
 
-Or start it with one call:
+That's all. Custom events and signed-in users take one line each:
 
 ```js
-incisive.trackAll({
-  project: "PROJECT_ID", key: "WRITE_KEY", host: "https://API_HOST",
-  clicks: true, forms: true, engagement: true, views: true, errors: false,
-  // Optional: properties added to every event. These are placeholders; a function is called on each event.
-  // properties: { app: { version: "2.3.1" }, cart: { items: () => window.cart.length } },
-});
+incisive.track("signup", { plan: "pro" });
+incisive.identify("user-42", { plan: "pro" });
 ```
 
-`properties` are joined into every event; functions are called per event with
-`{collection, event}`. The page load is always recorded once tracking starts, even if the visitor
-leaves before the page finishes loading. In script-tag mode, `data-auto-track` takes `false` or a
-comma list of the flags.
+Every event carries its full context (visitor, session, landing page, referrer, campaign and
+channel, device, browser, location), so each question is a single query on a single collection.
+See [docs/web-analytics.md](docs/web-analytics.md) for every option and property.
 
-It keeps a first-party visitor ID, starts a session after 30 minutes of inactivity, at midnight
-UTC, or on arrival with new campaign parameters, and sends, over `sendBeacon` (falling back to
-`fetch` and then an image):
+## Track from your servers
 
-| Collection | When |
-|---|---|
-| `web_session` | once per session |
-| `web_pageview` | every page, including single-page-app navigations |
-| `web_click` | clicks on links, buttons and `data-track` elements, with outbound and download detection |
-| `web_form_submit` | form submissions (never field values) |
-| `web_engagement` | when a page view ends: engaged seconds, total seconds, max scroll depth |
-| `web_element_view` | `data-track-view` elements scrolling into view |
-| `web_error` | uncaught errors (off by default) |
+Client libraries live in [`sdks/`](sdks/): Python, Ruby, JavaScript, Go, PHP, Java and .NET. They
+cover sending events, every analysis, saved queries and key management. The Go library also has
+a server-side tracker with `net/http` middleware that records every API call (endpoint, status,
+latency, errors, and who made it) without slowing requests down.
 
-All use the standard schema, which is deliberately denormalized: every event repeats its
-session's landing page, external referrer, UTM parameters, ad click ID and derived channel, plus
-the visitor's identity, device, browser, language and timezone, so any question is one query on
-one collection. The server fills `ip_address` and `user_agent.raw` when absent and derives URL
-parts, referrer source and medium, the default channel grouping (Direct, Organic Search, Paid
-Search, Organic Social, Paid Social, Email, Referral, Affiliates, Display), browser, OS, device
-type, bot detection, geo (with a database) and local time. Client values always win over derived
-ones. The full field list is on the Schema page of the app and in `src/standard.rs`.
+```python
+from incisive import IncisiveClient
 
-`incisive.track(collection, props)` sends custom events with the same context;
-`incisive.identify(userId, traits)` adds `visitor.user_id` and `visitor.traits` from then on;
-`incisive.extend(props)` adds properties to every later event.
-
-## Tests
-
-```bash
-cargo test                                   # unit, query fixture, HTTP API
-INCISIVE_SMOKE_CONFIG=deploy/incisive.dev.toml cargo test --test fixture -- --ignored   # against the bucket
+client = IncisiveClient(project_id="PROJECT_ID", write_key="WRITE_KEY", base_url="https://YOUR_INCISIVE_HOST")
+client.add_event("purchases", {"item": {"name": "hat", "price": 25}, "customer": {"id": "c-1"}})
 ```
 
-- `tests/data/fixture.json`: 44 hand-computed queries (mixed types, null versus missing, DST,
-  filters, groups, intervals, funnels, extraction), run on fresh WAL, after compaction, and after
-  reopening the store.
-- `tests/api.rs`: every write transport, permissions and project isolation, queries over GET and
-  POST, saved queries, strict deletes, the keys API, scoped keys, standard collections.
-- `tests/data/scoped_*.json`: encrypted scoped key vectors produced by the upstream libraries.
-- `tests/js/tracker_e2e.cjs`: runs the served tracker in jsdom through several visits against a
-  running server and checks the stored sessions, pageviews, clicks, forms, engagement, `trackAll` properties and
-  derived properties.
-- `sdks/test-all.sh`: runs every SDK's test suite (unit tests, plus integration tests against a
-  running server when `INCISIVE_BASE_URL` and the key variables are set).
-- `scripts/seed_demo.py` sends 30 days of synthetic traffic, for trying the dashboard.
+Or skip the library: it's one HTTP request. See [docs/api.md](docs/api.md) for the whole API.
+
+## Run it for real
+
+On a server, put Incisive behind a reverse proxy for HTTPS, point it at a bucket, and give it an
+email provider so people can sign in. [docs/self-hosting.md](docs/self-hosting.md) walks
+through it, with a ready-made Caddy config, systemd unit and example configuration in
+[`deploy/`](deploy/).
+
+## Learn more
+
+- [docs/self-hosting.md](docs/self-hosting.md): configuration, storage, email, HTTPS, geolocation, backups
+- [docs/web-analytics.md](docs/web-analytics.md): the website tracker and its standard schema
+- [docs/api.md](docs/api.md): writing events, queries, keys and permissions
+- [docs/how-it-works.md](docs/how-it-works.md): how events are stored, compacted and queried
+- [Contributing and tests](docs/how-it-works.md#tests)
