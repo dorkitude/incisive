@@ -276,7 +276,8 @@ async fn standard_collections_and_placeholders() {
         "session": {"id": "s1", "landing_page": {"url": "https://shop.example/pricing?utm_source=news&utm_medium=email"}, "referrer": {"url": "https://www.google.com/"}},
         "visitor": {"id": "v1"},
         "custom": "${incisive.ip}",
-        "legacy": "${keen.ip}"
+        "legacy": "${keen.ip}",
+        "agent": "${incisive.user_agent}"
     });
     let r = e.call("POST", &e.url("/events/web_pageview"), Some(&e.write), Some(pv), &hdrs).await;
     assert_eq!(r.status, 201, "{}", String::from_utf8_lossy(&r.body));
@@ -290,6 +291,7 @@ async fn standard_collections_and_placeholders() {
     assert_eq!(ev["custom"], "203.0.113.9");
     assert_eq!(ev["legacy"], "203.0.113.9", "Keen's placeholder spelling works too");
     assert_eq!(ev["user_agent"]["raw"], ua);
+    assert_eq!(ev["agent"], ua, "the user agent placeholder is filled in");
     assert_eq!(ev["browser"]["name"], "Chrome");
     assert_eq!(ev["device"]["type"], "desktop");
     assert_eq!(ev["page"]["path"], "/pricing");
