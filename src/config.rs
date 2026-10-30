@@ -9,6 +9,8 @@ use std::path::PathBuf;
 #[serde(default)]
 #[derive(Default)]
 pub struct Config {
+    /// Comma-separated exact email domains allowed for new accounts; empty allows all.
+    pub signup_allowed_email_domains: String,
     pub server: Server,
     pub storage: Storage,
     pub cache: Cache,

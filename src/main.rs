@@ -108,7 +108,7 @@ async fn open(cfg: &Config) -> Result<(Arc<Engine>, Arc<Meta>)> {
             Meta::restore_if_missing(&cfg.meta.path, &snap)?;
             tracing::info!(path = %cfg.meta.path.display(), "restored metadata from backup");
         }
-    let meta = Meta::open(&cfg.meta.path)?;
+    let meta = Meta::open(&cfg.meta.path, &cfg.signup_allowed_email_domains)?;
     Ok((engine, meta))
 }
 

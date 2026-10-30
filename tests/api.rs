@@ -23,8 +23,13 @@ struct Env {
 }
 
 async fn env() -> Env {
+    env_with_domains("").await
+}
+
+async fn env_with_domains(domains: &str) -> Env {
     let dir = tempfile::tempdir().unwrap();
     let mut cfg = Config::default();
+    cfg.signup_allowed_email_domains = domains.into();
     cfg.storage.backend = "fs".into();
     cfg.storage.fs_path = dir.path().join("bucket");
     cfg.cache.dir = dir.path().join("cache");
@@ -34,7 +39,7 @@ async fn env() -> Env {
     cfg.server.redirect_allow_hosts = vec!["example.com".into()];
     cfg.limits.max_batch_events = 10;
     let engine = Engine::open(&cfg, objstore::build(&cfg.storage).unwrap()).await.unwrap();
-    let meta = Meta::open(&dir.path().join("meta.sqlite")).unwrap();
+    let meta = Meta::open(&dir.path().join("meta.sqlite"), &cfg.signup_allowed_email_domains).unwrap();
     let (p, keys) = meta.create_project(None, "test").unwrap();
     let st: St = Arc::new(AppState::new(cfg, engine, meta).unwrap());
     let app = api::router(st.clone());
@@ -423,4 +428,27 @@ async fn events_stored_under_keen_are_migrated() {
     let r = e.call("GET", &e.url("/queries/extraction?event_collection=old&timeframe=this_10_years"), Some(&e.read), None, &[]).await;
     assert_eq!(r.json()["result"][2]["incisive"]["timestamp"], "2026-01-01T00:00:00.003Z");
     st.engine.migrate_reserved_name().await.unwrap(); // runs once; a second call is a no-op
+}
+
+
+#[tokio::test]
+async fn restricted_signup_http() {
+    let e = env_with_domains("example.org").await;
+    let app = e.app.clone().merge(incisive::web::router(e.st.clone()));
+    for path in ["/login", "/login/code"] {
+        let response = app.clone().oneshot(Request::builder().method("POST").uri(path)
+            .header("content-type", "application/x-www-form-urlencoded")
+            .body(Body::from("email=probe%40example.com&code=123456")).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        assert!(String::from_utf8_lossy(&body).contains("signups are limited to approved email domains"));
+    }
+    assert!(e.st.meta.user_by_email("probe@example.com").unwrap().is_none());
+    let error: api::ApiError = e.st.meta.ensure_user("probe@example.com").unwrap_err().into();
+    assert_eq!(error.status, StatusCode::FORBIDDEN);
+    assert_eq!(error.code, "SignupNotAllowed");
+    // Restricting signup must leave authenticated public ingestion working.
+    let response = e.call("POST", &format!("/1.0/projects/{}/events/probes", e.pid),
+        Some(&e.write), Some(json!({"ok": true})), &[]).await;
+    assert_eq!(response.status, StatusCode::CREATED);
 }

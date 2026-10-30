@@ -159,6 +159,9 @@ impl WebUser {
 }
 
 pub fn internal(e: anyhow::Error) -> Response {
+    if e.is::<crate::meta::SignupNotAllowed>() {
+        return (StatusCode::FORBIDDEN, Html(pages::login_page(Some(&e.to_string())))).into_response();
+    }
     crate::api::ApiError::from(e).into_response()
 }
 
@@ -172,11 +175,6 @@ async fn home(State(st): State<St>, headers: HeaderMap) -> Response {
 
 async fn login_page() -> Html<String> {
     Html(pages::login_page(None))
-}
-
-fn valid_email(e: &str) -> bool {
-    let Some((local, domain)) = e.split_once('@') else { return false };
-    !local.is_empty() && domain.contains('.') && !domain.starts_with('.') && !domain.ends_with('.') && e.len() <= 254 && !e.chars().any(|c| c.is_whitespace() || c == '<' || c == '>' || c == ',')
 }
 
 static LOGIN_ATTEMPTS: once_cell::sync::Lazy<Mutex<HashMap<String, Vec<i64>>>> = once_cell::sync::Lazy::new(Default::default);
@@ -199,7 +197,7 @@ fn login_allowed(email: &str) -> bool {
 
 async fn login_submit(State(st): State<St>, Form(form): Form<HashMap<String, String>>) -> Response {
     let email = form.get("email").map(|s| s.trim().to_lowercase()).unwrap_or_default();
-    if !valid_email(&email) {
+    if !crate::meta::valid_email(&email) {
         return Html(pages::login_page(Some("Please enter a valid email address."))).into_response();
     }
     if !login_allowed(&email) {

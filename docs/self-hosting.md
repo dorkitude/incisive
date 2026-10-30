@@ -87,6 +87,18 @@ journalctl -u incisive -f
 
 Sign in at your `public_url`. Your first sign-in creates your account and a first project.
 
+## Optional: restrict new accounts
+
+Set `INCISIVE_SIGNUP_ALLOWED_EMAIL_DOMAINS=example.com,example.org` in the service
+environment, or `signup_allowed_email_domains = "example.com,example.org"` at the top
+of the TOML file. The default empty value keeps signups open. Domains are trimmed,
+case-insensitive and matched exactly; subdomains are separate domains.
+
+The restriction applies to email-code signup before any code is stored or email sent,
+and to all user creation, including CLI commands with `--owner`. Existing accounts
+can still sign in. CLI commands must use the same configuration/environment as the service.
+Public event ingestion is unaffected.
+
 ## Optional: visitor locations
 
 Give Incisive a MaxMind-format city database and every event with an IP address gets country,

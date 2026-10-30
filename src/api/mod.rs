@@ -123,6 +123,9 @@ impl From<QueryError> for ApiError {
 
 impl From<anyhow::Error> for ApiError {
     fn from(e: anyhow::Error) -> ApiError {
+        if e.is::<crate::meta::SignupNotAllowed>() {
+            return err(StatusCode::FORBIDDEN, "SignupNotAllowed", e.to_string());
+        }
         tracing::error!(error = %format!("{e:#}"), "internal error");
         err(StatusCode::INTERNAL_SERVER_ERROR, "InternalServerError", "internal server error")
     }

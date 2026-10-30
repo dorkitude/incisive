@@ -172,7 +172,23 @@ pub struct SavedQuery {
     pub updated_at: i64,
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error("Sorry, signups are limited to approved email domains. Please use an approved email address.")]
+pub struct SignupNotAllowed;
+
+/// Accept an unquoted mailbox with one unambiguous domain. Plus tags stay in the local part.
+pub fn valid_email(email: &str) -> bool {
+    let Some((local, domain)) = email.split_once('@') else { return false };
+    email.len() <= 254 && !local.is_empty() && local.len() <= 64
+        && !local.starts_with('.') && !local.ends_with('.') && !local.contains("..")
+        && local.bytes().all(|b| b.is_ascii_alphanumeric() || b".!#$%&'*+-/=?^_`{|}~".contains(&b))
+        && domain.contains('.')
+        && domain.split('.').all(|label| !label.is_empty() && !label.starts_with('-')
+            && !label.ends_with('-') && label.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-'))
+}
+
 pub struct Meta {
+    signup_allowed_email_domains: Vec<String>,
     conn: Mutex<Connection>,
     path: PathBuf,
     /// Key hash -> key, for fast authentication of tracking requests.
@@ -212,7 +228,7 @@ fn key_from_row(r: &rusqlite::Row) -> rusqlite::Result<ApiKey> {
 }
 
 impl Meta {
-    pub fn open(path: &Path) -> Result<Arc<Meta>> {
+    pub fn open(path: &Path, signup_allowed_email_domains: &str) -> Result<Arc<Meta>> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
         }
@@ -225,7 +241,8 @@ impl Meta {
         }
         // Saved queries from before the reserved object was renamed from `keen` to `incisive`.
         conn.execute(r#"UPDATE saved_queries SET body = REPLACE(body, '"keen.', '"incisive.') WHERE body LIKE '%"keen.%'"#, [])?;
-        Ok(Arc::new(Meta { conn: Mutex::new(conn), path: path.to_path_buf(), keys: Mutex::default(), masters: Mutex::default() }))
+        Ok(Arc::new(Meta { signup_allowed_email_domains: signup_allowed_email_domains
+            .split(',').map(|d| d.trim().to_ascii_lowercase()).filter(|d| !d.is_empty()).collect(), conn: Mutex::new(conn), path: path.to_path_buf(), keys: Mutex::default(), masters: Mutex::default() }))
     }
 
     fn invalidate(&self) {
@@ -249,16 +266,33 @@ impl Meta {
 
     /// Returns the user with this email, creating it if needed. The bool is true when created.
     pub fn ensure_user(&self, email: &str) -> Result<(User, bool)> {
-        if let Some(u) = self.user_by_email(email)? {
+        let email = email.trim().to_lowercase();
+        if let Some(u) = self.user_by_email(&email)? {
             return Ok((u, false));
         }
+        self.check_signup(&email)?;
         let u = User { id: new_id(), email: email.to_string(), created_at: now() };
         self.conn.lock().execute("INSERT INTO users (id, email, created_at) VALUES (?1, ?2, ?3)", params![u.id, u.email, u.created_at])?;
         Ok((u, true))
     }
 
+    /// Shared policy for account creation and preflight before sending a first-login email.
+    /// Existing accounts are exempt so changing signup policy never locks them out.
+    pub fn check_signup(&self, email: &str) -> Result<()> {
+        let email = email.trim().to_lowercase();
+        if self.signup_allowed_email_domains.is_empty() || self.user_by_email(&email)?.is_some() {
+            return Ok(());
+        }
+        if valid_email(&email) && email.split_once('@')
+            .is_some_and(|(_, domain)| self.signup_allowed_email_domains.iter().any(|d| d == domain)) {
+            return Ok(());
+        }
+        Err(SignupNotAllowed.into())
+    }
+
     /// Creates a 6-digit sign-in code for an email address, replacing any earlier unused code.
     pub fn create_login_code(&self, email: &str) -> Result<String> {
+        self.check_signup(email)?;
         let code = format!("{:06}", rand::random_range(0..1_000_000u32));
         let c = self.conn.lock();
         c.execute("DELETE FROM login_tokens WHERE expires_at < ?1 OR (email = ?2 AND used_at IS NULL)", params![now() - 86400, email])?;
@@ -273,6 +307,7 @@ impl Meta {
     /// Checks a sign-in code. A code works once, within 15 minutes, and is burned after
     /// `MAX_CODE_ATTEMPTS` wrong guesses.
     pub fn consume_login_code(&self, email: &str, code: &str) -> Result<bool> {
+        self.check_signup(email)?;
         let c = self.conn.lock();
         let row: Option<(String, String, i64)> = c
             .query_row(
@@ -671,7 +706,7 @@ mod tests {
     #[test]
     fn login_flow_and_keys() {
         let dir = tempfile::tempdir().unwrap();
-        let m = Meta::open(&dir.path().join("m.sqlite")).unwrap();
+        let m = Meta::open(&dir.path().join("m.sqlite"), "").unwrap();
         let t = m.create_login_code("a@example.com").unwrap();
         assert_eq!(t.len(), 6);
         assert!(!m.consume_login_code("b@example.com", &t).unwrap(), "codes belong to one address");
@@ -698,14 +733,14 @@ mod tests {
         let snap = m.snapshot().unwrap();
         let p2 = dir.path().join("restored.sqlite");
         assert!(Meta::restore_if_missing(&p2, &snap).unwrap());
-        let m2 = Meta::open(&p2).unwrap();
+        let m2 = Meta::open(&p2, "").unwrap();
         assert_eq!(m2.projects_for(&u.id).unwrap().len(), 1);
     }
 
     #[test]
     fn account_keys() {
         let dir = tempfile::tempdir().unwrap();
-        let m = Meta::open(&dir.path().join("m.sqlite")).unwrap();
+        let m = Meta::open(&dir.path().join("m.sqlite"), "").unwrap();
         let (u, _) = m.ensure_user("a@example.com").unwrap();
         let (other, _) = m.ensure_user("b@example.com").unwrap();
         let (mine, _) = m.create_project(Some(&u.id), "mine").unwrap();
@@ -728,7 +763,7 @@ mod tests {
     #[test]
     fn expired_login_code() {
         let dir = tempfile::tempdir().unwrap();
-        let m = Meta::open(&dir.path().join("m.sqlite")).unwrap();
+        let m = Meta::open(&dir.path().join("m.sqlite"), "").unwrap();
         let t = m.create_login_code("a@example.com").unwrap();
         m.conn.lock().execute("UPDATE login_tokens SET expires_at = ?1", [now() - 1]).unwrap();
         assert!(!m.consume_login_code("a@example.com", &t).unwrap());
@@ -737,7 +772,7 @@ mod tests {
     #[test]
     fn code_attempts_are_limited_and_new_codes_replace_old() {
         let dir = tempfile::tempdir().unwrap();
-        let m = Meta::open(&dir.path().join("m.sqlite")).unwrap();
+        let m = Meta::open(&dir.path().join("m.sqlite"), "").unwrap();
         let old = m.create_login_code("a@example.com").unwrap();
         let t = m.create_login_code("a@example.com").unwrap();
         if old != t {
@@ -749,4 +784,38 @@ mod tests {
         }
         assert!(!m.consume_login_code("a@example.com", &t).unwrap(), "burned after too many wrong guesses");
     }
+    #[test]
+    fn signup_domain_policy() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("policy.sqlite");
+        let open = Meta::open(&path, "").unwrap();
+        open.ensure_user("existing@example.net").unwrap();
+        // Simulate an outstanding code issued before tightening the policy.
+        let stale = open.create_login_code("stale@example.net").unwrap();
+        drop(open);
+        let m = Meta::open(&path, " Example.COM, OTHER.ORG ").unwrap();
+        for email in ["person@example.com", " PERSON@EXAMPLE.COM ", "person+tag@example.com", "person@other.org"] {
+            m.ensure_user(email).unwrap();
+        }
+        assert!(m.user_by_email("person@example.com").unwrap().is_some());
+        assert!(!m.ensure_user("existing@example.net").unwrap().1);
+        let code = m.create_login_code("existing@example.net").unwrap();
+        assert!(m.consume_login_code("existing@example.net", &code).unwrap());
+        let before: i64 = m.conn.lock().query_row("SELECT count(*) FROM login_tokens", [], |r| r.get(0)).unwrap();
+        for email in ["probe@evil-example.com", "probe@example.com.evil.io",
+            "probe@sub.example.com", "probe@example.net", "probe@example.com+evil.net",
+            "probe@evil.net+example.com", "probe@evil.net@example.com",
+            "\"probe@evil.net\"@example.com", "probe@example.com.", "probe@ｅxample.com"] {
+            assert!(m.ensure_user(email).unwrap_err().is::<SignupNotAllowed>(), "{email}");
+            assert!(m.create_login_code(email).unwrap_err().is::<SignupNotAllowed>(), "{email}");
+            assert!(m.user_by_email(email).unwrap().is_none());
+        }
+        assert!(m.consume_login_code("stale@example.net", &stale).unwrap_err().is::<SignupNotAllowed>());
+        assert_eq!(before, m.conn.lock().query_row("SELECT count(*) FROM login_tokens", [], |r| r.get::<_, i64>(0)).unwrap());
+        assert_eq!(0, m.conn.lock().query_row("SELECT count(*) FROM projects", [], |r| r.get::<_, i64>(0)).unwrap());
+        drop(m);
+        let open = Meta::open(&path, "").unwrap();
+        open.ensure_user("anywhere@else.net").unwrap();
+    }
+
 }
